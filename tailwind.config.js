@@ -1,0 +1,70 @@
+/** @type {import('tailwindcss').Config} */
+const purplePalette = {
+  50: '#faf5ff',
+  100: '#f3e8ff',
+  200: '#e9d5ff',
+  300: '#d8b4fe',
+  400: '#c084fc',
+  500: '#a855f7',
+  600: '#9333ea',
+  700: '#7e22ce',
+  800: '#6b21a8',
+  900: '#581c87',
+  950: '#1a052e',
+};
+
+export default {
+  darkMode: 'class',
+  content: [
+    "./src/**/*.{js,jsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#a855f7',
+        secondary: '#7e22ce',
+        accent: '#c084fc',
+        success: '#9333ea',
+        warning: '#d8b4fe',
+        danger: '#581c87',
+        info: '#a855f7',
+        black: '#0a0212',
+        white: '#ffffff',
+        slate: {
+          50: 'rgb(var(--slate-50) / <alpha-value>)',
+          100: 'rgb(var(--slate-100) / <alpha-value>)',
+          200: 'rgb(var(--slate-200) / <alpha-value>)',
+          300: 'rgb(var(--slate-300) / <alpha-value>)',
+          400: 'rgb(var(--slate-400) / <alpha-value>)',
+          500: 'rgb(var(--slate-500) / <alpha-value>)',
+          600: 'rgb(var(--slate-600) / <alpha-value>)',
+          700: 'rgb(var(--slate-700) / <alpha-value>)',
+          800: 'rgb(var(--slate-800) / <alpha-value>)',
+          900: 'rgb(var(--slate-900) / <alpha-value>)',
+          950: 'rgb(var(--slate-950) / <alpha-value>)',
+        },
+        emerald: purplePalette,
+        green: purplePalette,
+        red: purplePalette,
+        orange: purplePalette,
+        amber: purplePalette,
+        yellow: purplePalette,
+        lime: purplePalette,
+        teal: purplePalette,
+        cyan: purplePalette,
+        sky: purplePalette,
+        blue: purplePalette,
+        indigo: purplePalette,
+        violet: purplePalette,
+        purple: purplePalette,
+        fuchsia: purplePalette,
+        pink: purplePalette,
+        rose: purplePalette,
+      },
+      spacing: {
+        '128': '32rem',
+      }
+    },
+  },
+  plugins: [],
+}

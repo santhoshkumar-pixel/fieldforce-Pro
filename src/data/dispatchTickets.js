@@ -1,0 +1,138 @@
+export const dispatchPriorities = ["HIGH", "CRITICAL", "MEDIUM", "LOW"];
+
+export const dispatchStatusOptions = [
+  "UNASSIGNED",
+  "ASSIGNED",
+  "ACCEPTED",
+  "REJECTED",
+  "TRAVELLING",
+  "REVIEW",
+  "COMPLETED",
+  "ESCALATED",
+];
+
+/** Tickets admin sends to technicians — accept / reject workflow */
+export const initialDispatchTickets = [
+  {
+    id: "JOB-2024-001",
+    customer: "Ravi Sharma",
+    site: "Mapusa Water Plant",
+    technician: "Rohit Kumar",
+    priority: "HIGH",
+    status: "ACCEPTED",
+    slaTime: "00:42",
+    slaOverdue: false,
+    sentAt: "2026-05-21T08:00:00",
+    respondedAt: "2026-05-21T08:15:00",
+    rejectReason: null,
+    issue: "Water level sensor reporting anomalous high spikes during off-peak hours.",
+  },
+  {
+    id: "JOB-2024-002",
+    customer: "ABC Corp",
+    site: "Panaji EV Hub",
+    technician: "Ayesha Patel",
+    priority: "CRITICAL",
+    status: "TRAVELLING",
+    slaTime: "00:42",
+    slaOverdue: false,
+    sentAt: "2026-05-21T07:30:00",
+    respondedAt: "2026-05-21T07:45:00",
+    rejectReason: null,
+    issue: "EV Charger Unit 4 completely unresponsive; screen is blank and no power flow.",
+  },
+  {
+    id: "JOB-2024-003",
+    customer: "Goa Hotels Ltd",
+    site: "Vasco CCTV Tower",
+    technician: "Vikram Singh",
+    priority: "MEDIUM",
+    status: "ASSIGNED",
+    slaTime: "OVERDUE",
+    slaOverdue: true,
+    sentAt: "2026-05-21T06:00:00",
+    respondedAt: null,
+    rejectReason: null,
+    issue: "Security camera feed dropped; power supply unit failure suspected.",
+  },
+  {
+    id: "JOB-2024-004",
+    customer: "City Municipal",
+    site: "Margao Solar Grid",
+    technician: "Sameer Desai",
+    priority: "LOW",
+    status: "COMPLETED",
+    slaTime: "02:57",
+    slaOverdue: false,
+    sentAt: "2026-05-20T14:00:00",
+    respondedAt: "2026-05-20T14:20:00",
+    rejectReason: null,
+    issue: "Inverter efficiency dropped below 70%; needs calibration and dust cleanup.",
+  },
+  {
+    id: "JOB-2024-005",
+    customer: "Green Energy Pvt",
+    site: "Ponda Industrial Zone",
+    technician: "Meera Rao",
+    priority: "HIGH",
+    status: "REJECTED",
+    slaTime: "—",
+    slaOverdue: false,
+    sentAt: "2026-05-21T09:00:00",
+    respondedAt: "2026-05-21T09:10:00",
+    rejectReason: "Already on another critical job",
+    issue: "Backup battery cell unit 3 overheating during fast charge cycle.",
+  },
+  {
+    id: "JOB-2024-006",
+    customer: "Coastal Resorts",
+    site: "Bicholim Treatment Plant",
+    technician: null,
+    priority: "CRITICAL",
+    status: "UNASSIGNED",
+    slaTime: "01:20",
+    slaOverdue: false,
+    sentAt: null,
+    respondedAt: null,
+    rejectReason: null,
+    issue: "pH level telemetry transmitter stopped broadcasting data stream.",
+  },
+  {
+    id: "JOB-2024-007",
+    customer: "Smart City Goa",
+    site: "Calangute Beach Hub",
+    technician: "Rohit Kumar",
+    priority: "MEDIUM",
+    status: "ESCALATED",
+    slaTime: "OVERDUE",
+    slaOverdue: true,
+    sentAt: "2026-05-20T10:00:00",
+    respondedAt: "2026-05-20T10:30:00",
+    rejectReason: null,
+    issue: "Wi-Fi access point node 2 flashing red; firmware sync error.",
+  },
+  {
+    id: "JOB-2024-008",
+    customer: "Harbour Authority",
+    site: "Mormugao Port",
+    technician: null,
+    priority: "LOW",
+    status: "UNASSIGNED",
+    slaTime: "04:15",
+    slaOverdue: false,
+    sentAt: null,
+    respondedAt: null,
+    rejectReason: null,
+    issue: "Docking guide light system showing erratic flash patterns.",
+  },
+];
+
+export function nextJobId(tickets) {
+  const year = new Date().getFullYear();
+  const nums = tickets
+    .map((t) => t.id.match(/JOB-\d+-(\d+)/))
+    .filter(Boolean)
+    .map((m) => parseInt(m[1], 10));
+  const next = (nums.length ? Math.max(...nums) : 0) + 1;
+  return `JOB-${year}-${String(next).padStart(3, "0")}`;
+}

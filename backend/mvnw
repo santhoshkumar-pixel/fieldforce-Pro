@@ -1,0 +1,29 @@
+#!/bin/sh
+# A self-bootstrapping Maven wrapper for Linux/macOS
+
+MAVEN_VERSION="3.9.6"
+MAVEN_DIR="$(dirname "$0")/.mvn/apache-maven-$MAVEN_VERSION"
+
+if [ ! -d "$MAVEN_DIR" ]; then
+    echo "Maven wrapper: Apache Maven $MAVEN_VERSION is not found. Downloading..."
+    mkdir -p "$(dirname "$0")/.mvn"
+    
+    ZIP_URL="https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.zip"
+    ZIP_FILE="$(dirname "$0")/.mvn/maven.zip"
+    
+    if command -v curl >/dev/null 2>&1; then
+        curl -sL "$ZIP_URL" -o "$ZIP_FILE"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q "$ZIP_URL" -O "$ZIP_FILE"
+    else
+        echo "Error: curl or wget is required to download Maven."
+        exit 1
+    fi
+    
+    echo "Extracting Maven..."
+    unzip -q "$ZIP_FILE" -d "$(dirname "$0")/.mvn"
+    rm "$ZIP_FILE"
+    echo "Maven wrapper: Download and extraction complete."
+fi
+
+exec "$MAVEN_DIR/bin/mvn" "$@"

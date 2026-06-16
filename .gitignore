@@ -1,0 +1,37 @@
+# Node / Frontend Build
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Java / Maven / Backend Build
+backend/target/
+backend/bin/
+.mvn/
+backend/.mvn/
+backend/uploads/
+
+# Environment configurations
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+**/hs_err_pid*
+**/replay_pid*
+
+# Editor / IDE settings
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Files
+Thumbs.db
+desktop.ini
