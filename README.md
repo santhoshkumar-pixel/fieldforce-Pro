@@ -37,8 +37,8 @@ Open [http://localhost:5173](http://localhost:5173)
 
 | Field    | Value                 |
 |----------|-----------------------|
-| Email    | `admin@fieldforce.io` |
-| Password | `admin123`            |
+| Email    | `superadmin@fieldforce.io` |
+| Password | `password123`            |
 
 ## Scripts
 
