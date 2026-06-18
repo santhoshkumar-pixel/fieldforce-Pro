@@ -708,5 +708,166 @@ html.dark {
   box-shadow: 0 0 22px 8px rgba(168, 85, 247, 0.8) !important;
 }
 
+/* Custom Leaflet Styling Override (Default: Light Mode) */
+.leaflet-container {
+  background-color: #f8fafc !important;
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(168, 85, 247, 0.15) !important;
+  color: #0f172a !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02) !important;
+  padding: 4px !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-left: 1px solid rgba(168, 85, 247, 0.15) !important;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.15) !important;
+}
+
+.leaflet-popup-close-button {
+  color: #64748b !important;
+  padding: 8px 10px 0 0 !important;
+  font-size: 16px !important;
+  top: 6px !important;
+  right: 6px !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: #1e1b4b !important;
+  background: none !important;
+}
+
+/* Control Zoom Buttons (Light Mode) */
+.leaflet-bar {
+  border: 1px solid rgba(168, 85, 247, 0.15) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(4px) !important;
+  color: #7e22ce !important;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.1) !important;
+  transition: all 0.2s ease;
+}
+
+.leaflet-bar a:hover {
+  background-color: rgba(168, 85, 247, 0.08) !important;
+  color: #a855f7 !important;
+}
+
+/* Dark Mode Overrides */
+.dark .leaflet-container {
+  background-color: #0a0212 !important;
+}
+
+.dark .leaflet-popup-content-wrapper {
+  background: rgba(15, 15, 20, 0.9) !important;
+  border: 1px solid rgba(168, 85, 247, 0.25) !important;
+  color: #f4f4f5 !important;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .leaflet-popup-tip {
+  background: rgba(15, 15, 20, 0.9) !important;
+  border-left: 1px solid rgba(168, 85, 247, 0.25) !important;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.25) !important;
+}
+
+.dark .leaflet-popup-close-button {
+  color: #a1a1aa !important;
+}
+
+.dark .leaflet-popup-close-button:hover {
+  color: #ffffff !important;
+}
+
+.dark .leaflet-bar {
+  border: 1px solid rgba(168, 85, 247, 0.2) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .leaflet-bar a,
+.dark .leaflet-bar a:hover {
+  background-color: rgba(24, 24, 27, 0.8) !important;
+  color: #c084fc !important;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.15) !important;
+}
+
+.dark .leaflet-bar a:hover {
+  background-color: rgba(168, 85, 247, 0.2) !important;
+  color: #ffffff !important;
+}
+
+/* Custom Div Icon Marker styles */
+.custom-leaflet-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.custom-marker-pin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50% 50% 50% 0;
+  position: absolute;
+  transform: rotate(-45deg);
+  left: 50%;
+  top: 50%;
+  margin: -16px 0 0 -16px;
+  border: 2px solid #1a052e;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.custom-marker-pin::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  margin: 7px 0 0 7px;
+  background: #000;
+  position: absolute;
+  border-radius: 50%;
+}
+
+/* Dark mode filter for standard OpenStreetMap tiles - only when theme is dark */
+.dark .dark-map .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(115%) saturate(70%);
+}
+
+.dark-map .leaflet-container {
+  background-color: #f8fafc !important;
+}
+
+.dark .dark-map .leaflet-container {
+  background-color: #0c0a17 !important;
+}
+
+/* Blinking/Pulsing Animation for Leaflet CircleMarkers */
+@keyframes marker-blink {
+  0%, 100% {
+    fill-opacity: 0.45;
+    stroke-opacity: 0.6;
+    stroke-width: 2.5px;
+  }
+  50% {
+    fill-opacity: 0.85;
+    stroke-opacity: 1;
+    stroke-width: 5px;
+  }
+}
+
+.blinking-marker {
+  animation: marker-blink 1.8s infinite ease-in-out;
+}
 
 

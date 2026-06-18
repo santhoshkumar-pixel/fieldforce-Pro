@@ -1,10 +1,10 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { GoogleMap, useJsApiLoader, Marker, Polyline, InfoWindow } from "@react-google-maps/api";
-import { io } from "socket.io-client";
-import { Activity, ArrowLeft, BarChart3, Map as MapIcon, RefreshCw, Cpu, CheckCircle2, AlertTriangle, AlertOctagon } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, CircleMarker } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { Activity, Map as MapIcon, Cpu, AlertTriangle } from "lucide-react";
 import clsx from "clsx";
 import PageHeader from "../components/PageHeader";
-import Badge, { deviceStatusVariant } from "../components/ui/Badge";
 import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import { useDevice } from "../context/DeviceContext";
 import { useAuth } from "../context/AuthContext";
@@ -13,98 +13,37 @@ import { api } from "../utils/api";
 import { useRegion } from "../context/RegionContext";
 import { useAttendance } from "../context/AttendanceContext";
 
-const containerStyle = {
-  width: "100%",
-  height: "650px",
-  borderRadius: "0px"
-};
+// Helper component to programmatically pan/zoom the Leaflet map
+function MapController({ center, selectedTechId, shifts }) {
+  const map = useMap();
+  const shiftsRef = useRef(shifts);
 
-const defaultCenter = {
-  lat: 15.4901,
-  lng: 73.8199
-};
+  // Sync shifts to ref to avoid triggering the flight animation on telemetry updates
+  useEffect(() => {
+    shiftsRef.current = shifts;
+  }, [shifts]);
 
-const darkMapStyles = [
-  { elementType: "geometry", stylers: [{ color: "#0a0212" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#0a0212" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#c084fc" }] },
-  {
-    featureType: "administrative.locality",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#a855f7" }],
-  },
-  {
-    featureType: "poi",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#a855f7" }],
-  },
-  {
-    featureType: "poi.park",
-    elementType: "geometry",
-    stylers: [{ color: "#1a052e" }],
-  },
-  {
-    featureType: "poi.park",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#d8b4fe" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#581c87" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#1a052e" }],
-  },
-  {
-    featureType: "road",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#c084fc" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#6b21a8" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#1a052e" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#ffffff" }],
-  },
-  {
-    featureType: "transit",
-    elementType: "geometry",
-    stylers: [{ color: "#581c87" }],
-  },
-  {
-    featureType: "transit.station",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#a855f7" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#1a052e" }],
-  },
-  {
-    featureType: "water",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#c084fc" }],
-  },
-  {
-    featureType: "water",
-    elementType: "labels.text.stroke",
-    stylers: [{ color: "#1a052e" }],
-  },
-];
+  useEffect(() => {
+    if (selectedTechId !== "all") {
+      const techShift = shiftsRef.current.find((s) => s.userId === selectedTechId);
+      if (techShift && techShift.gps) {
+        map.flyTo([techShift.gps.lat, techShift.gps.lng], 14, {
+          duration: 1.5,
+          easeLinearity: 0.25,
+        });
+      }
+    } else {
+      map.flyTo([center.lat, center.lng], center.lat === 22.0 ? 5 : 10, {
+        duration: 1.5,
+        easeLinearity: 0.25,
+      });
+    }
+  }, [selectedTechId, center, map]);
 
+  return null;
+}
+
+// Function to calculate travel direction
 function getTravelDirection(lat1, lng1, lat2, lng2) {
   if (lat1 === undefined || lng1 === undefined || lat2 === undefined || lng2 === undefined) return "Stationary";
   const dx = lng2 - lng1;
@@ -124,38 +63,47 @@ function getTravelDirection(lat1, lng1, lat2, lng2) {
   return "South-East ↘️";
 }
 
-export default function MapPage() {
-  // Validate and load Google Maps API key
-  const googleMapsApiKey = useMemo(() => {
-    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
-    // Only pass if it is a valid browser key starting with AIzaSy
-    return key.startsWith("AIzaSy") ? key : "";
-  }, []);
+// Helper function to create custom Leaflet pins with status colors & technician initials
+const createCustomIcon = (shift) => {
+  const pinColor = shift.shiftStatus === "on_shift"
+    ? "#a855f7" // Purple
+    : shift.shiftStatus === "on_break"
+      ? "#eab308" // Amber/Yellow
+      : "#64748b"; // Slate / Grey
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: googleMapsApiKey,
+  const initials = shift.name
+    ? shift.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
+    : "??";
+
+  const htmlContent = `
+    <div class="custom-leaflet-marker" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; width: 36px; height: 46px;">
+      <svg width="36" height="46" viewBox="0 0 36 46" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.45)); position: absolute; top: 0; left: 0;">
+        <path d="M18 0C8.06 0 0 8.06 0 18C0 29.5 18 46 18 46C18 46 36 29.5 36 18C36 8.06 27.94 0 18 0Z" fill="${pinColor}" stroke="#1a052e" stroke-width="2"/>
+        <circle cx="18" cy="18" r="11" fill="#09090b" stroke="#1a052e" stroke-width="1"/>
+      </svg>
+      <div style="position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 800; color: #ffffff; pointer-events: none; z-index: 10; font-mono: inherit;">
+        ${initials}
+      </div>
+    </div>
+  `;
+
+  return L.divIcon({
+    html: htmlContent,
+    className: "custom-div-icon",
+    iconSize: [36, 46],
+    iconAnchor: [18, 46],
+    popupAnchor: [0, -46],
   });
+};
 
-  // Dynamically compute map options to avoid warnings about setting styles with mapId
-  const mapOptions = useMemo(() => {
-    return {
-      disableDefaultUI: false,
-      zoomControl: true,
-      streetViewControl: false,
-      mapTypeControl: false,
-      ...(googleMapsApiKey ? { mapId: "116619c5cc773e01f19fcdd604916991" } : { styles: darkMapStyles }),
-    };
-  }, [googleMapsApiKey]);
 
+export default function MapPage() {
   const { devices } = useDevice();
   const { user } = useAuth();
-  const { selectedRegion } = useRegion();
+  const { selectedRegion, setSelectedRegionId } = useRegion();
   const { shifts: contextShifts } = useAttendance();
   const [liveShifts, setLiveShifts] = useState([]);
   
-  const mapRef = useRef(null);
-
   useEffect(() => {
     setLiveShifts(contextShifts);
   }, [contextShifts]);
@@ -182,7 +130,6 @@ export default function MapPage() {
     });
   }, [shifts, userPlace]);
 
-  const [activeTab, setActiveTab] = useState("map");
   const [ticketsList, setTicketsList] = useState([]);
   const [selectedTechId, setSelectedTechId] = useState(() => {
     if (user?.role === "Field Technician" || user?.role === "Technician") {
@@ -195,31 +142,15 @@ export default function MapPage() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
   const [userTracks, setUserTracks] = useState({});
   const [wsConnectionStatus, setWsConnectionStatus] = useState("disconnected");
-  
   const [selectedMarker, setSelectedMarker] = useState(null);
-
-  // States for Maps Embed API
-  const [embedMode, setEmbedMode] = useState("place");
-  const [embedQuery, setEmbedQuery] = useState("Space Needle, Seattle WA");
-  const [embedLocation, setEmbedLocation] = useState("47.6205,-122.3493");
-  const [zoomLevel, setZoomLevel] = useState(14);
-  const [mapType, setMapType] = useState("roadmap");
 
   const mapCenter = useMemo(() => {
     if (userPlace === "Bhutan") {
       return { lat: 27.4728, lng: 89.6393 };
+    } else if (userPlace === "Goa") {
+      return { lat: 15.4901, lng: 73.8199 };
     }
-    return { lat: 15.4901, lng: 73.8199 };
-  }, [userPlace]);
-
-  useEffect(() => {
-    if (userPlace === "Bhutan") {
-      setEmbedQuery("Thimphu, Bhutan");
-      setEmbedLocation("27.4728,89.6393");
-    } else {
-      setEmbedQuery("Panaji, Goa, India");
-      setEmbedLocation("15.4909,73.8278");
-    }
+    return { lat: 22.0, lng: 80.0 }; // South Asia center containing both
   }, [userPlace]);
 
   const fetchTickets = async () => {
@@ -369,53 +300,6 @@ export default function MapPage() {
     });
   }, [shifts]);
 
-  const handleMapLoad = useCallback((map) => {
-    mapRef.current = map;
-  }, []);
-
-  const handleMapUnmount = useCallback(() => {
-    mapRef.current = null;
-  }, []);
-
-  // Pan to selected technician
-  useEffect(() => {
-    if (selectedTechId !== "all" && mapRef.current) {
-      const techShift = shifts.find((s) => s.userId === selectedTechId);
-      if (techShift && techShift.gps) {
-        mapRef.current.panTo({ lat: techShift.gps.lat, lng: techShift.gps.lng });
-        mapRef.current.setZoom(14);
-      }
-    } else if (selectedTechId === "all" && mapRef.current) {
-      mapRef.current.panTo(mapCenter);
-      mapRef.current.setZoom(10);
-    }
-  }, [selectedTechId, shifts, mapCenter]);
-
-  // Sync selected technician with embed inputs
-  useEffect(() => {
-    if (selectedTechId !== "all") {
-      const techShift = shifts.find((s) => s.userId === selectedTechId);
-      if (techShift && techShift.gps) {
-        const coords = `${techShift.gps.lat.toFixed(6)},${techShift.gps.lng.toFixed(6)}`;
-        setEmbedLocation(coords);
-        setEmbedQuery(techShift.gps.address || coords);
-      }
-    }
-  }, [selectedTechId, shifts]);
-
-  // Memoized URL for Maps Embed API
-  const embedUrl = useMemo(() => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "116619c5cc773e01f19fcdd604916991";
-    if (embedMode === "place") {
-      let url = `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(embedQuery)}`;
-      if (zoomLevel) url += `&zoom=${zoomLevel}`;
-      if (mapType) url += `&maptype=${mapType}`;
-      return url;
-    } else {
-      return `https://www.google.com/maps/embed/v1/streetview?key=${apiKey}&location=${encodeURIComponent(embedLocation)}`;
-    }
-  }, [embedMode, embedQuery, embedLocation, zoomLevel, mapType]);
-
   const filteredDisplayShifts = filteredShiftsByRegion.filter((s) => {
     const matchTech = selectedTechId === "all" || s.userId === selectedTechId;
     const matchTeam = selectedTeamFilter === "all" || s.team === selectedTeamFilter;
@@ -427,191 +311,190 @@ export default function MapPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <PageHeader title="Live Technician Telemetry Monitor" />
-        
-        {/* Environment warning if no API key */}
-        {!import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
-          <div className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            VITE_GOOGLE_MAPS_API_KEY is missing from .env
-          </div>
-        )}
       </div>
 
-      <div className="bg-slate-900/40 p-1.5 border border-slate-800/60 rounded-2xl flex items-center gap-2 w-fit">
-        <button
-          onClick={() => setActiveTab("map")}
-          className={clsx(
-            "px-4.5 py-2 rounded-xl text-sm font-semibold flex items-center gap-2",
-            activeTab === "map"
-              ? "bg-sky-500/20 text-sky-400 border border-sky-500/30"
-              : "text-slate-400 border border-transparent"
-          )}
-        >
-          <MapIcon className="h-4 w-4" />
-          Interactive Google Map
-        </button>
-        <button
-          onClick={() => setActiveTab("embed")}
-          className={clsx(
-            "px-4.5 py-2 rounded-xl text-sm font-semibold flex items-center gap-2",
-            activeTab === "embed"
-              ? "bg-sky-500/20 text-sky-400 border border-sky-500/30"
-              : "text-slate-400 border border-transparent"
-          )}
-        >
-          <Cpu className="h-4 w-4" />
-          Maps Embed API (iFrame)
-        </button>
-      </div>
-
-      {activeTab === "map" && (
-        <div className="bg-slate-900/40 p-4 border border-slate-800/80 rounded-2xl space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
-              <span className={`h-2.5 w-2.5 rounded-full ${wsConnectionStatus === "connected" ? "bg-emerald-500" : "bg-rose-500"}`} />
-              <Activity className="h-4.5 w-4.5 text-sky-400" />
-              Socket.io Live Feed
-              <span className="text-[10px] text-slate-500 font-medium font-mono uppercase tracking-wider">
-                ({wsConnectionStatus})
-              </span>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Select Technician</label>
-              {user?.role === "Field Technician" || user?.role === "Technician" ? (
-                <div className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-350">
-                  {user.name} (Viewing Self)
-                </div>
-              ) : (
-                <select
-                  value={selectedTechId}
-                  onChange={(e) => {
-                    setSelectedTechId(e.target.value);
-                    setSelectedMarker(null);
-                  }}
-                  className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-sky-500/50"
-                >
-                  <option value="all">All Technicians</option>
-                  {filteredShiftsByRegion.map((s) => (
-                    <option key={s.userId} value={s.userId}>{s.name}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Filter by Team</label>
-              <select
-                value={selectedTeamFilter}
-                onChange={(e) => setSelectedTeamFilter(e.target.value)}
-                disabled={user?.role === "Field Technician" || user?.role === "Technician"}
-                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-sky-500/50 disabled:opacity-50"
-              >
-                <option value="all">All Teams</option>
-                {Array.from(new Set(filteredShiftsByRegion.map((s) => s.team).filter(Boolean))).sort().map((team) => (
-                  <option key={team} value={team}>{team}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Filter by Live Status</label>
-              <select
-                value={selectedStatusFilter}
-                onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-sky-500/50"
-              >
-                <option value="all">All Statuses</option>
-                <option value="on_shift">Active / On Shift</option>
-                <option value="on_break">On Break</option>
-                <option value="off_shift">Offline / Off Shift</option>
-              </select>
-            </div>
+      <div className="bg-slate-900/40 p-4 border border-slate-800/80 rounded-2xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
+            <span className={`h-2.5 w-2.5 rounded-full ${wsConnectionStatus === "connected" ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+            <Activity className="h-4.5 w-4.5 text-purple-400" />
+            Live WebSocket Connection
+            <span className="text-[10px] text-slate-500 font-medium font-mono uppercase tracking-wider">
+              ({wsConnectionStatus})
+            </span>
           </div>
         </div>
-      )}
-
-      {activeTab === "map" && (
-        <Card className="border border-slate-800 bg-slate-950/40 backdrop-blur-xl">
-          <CardHeader title="Live Map View" subtitle="Powered by Google Maps" />
-          <CardBody className="p-0">
-            {loadError ? (
-              <div className="text-rose-500 p-10 text-center font-semibold bg-rose-500/5 rounded-2xl">
-                Error loading Google Maps JS SDK. Please verify your API Key.
-              </div>
-            ) : !isLoaded ? (
-              <div className="text-sky-500 p-10 text-center font-bold animate-pulse">
-                Loading Google Maps JavaScript API...
+        
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Select Technician</label>
+            {user?.role === "Field Technician" || user?.role === "Technician" ? (
+              <div className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-300">
+                {user.name} (Viewing Self)
               </div>
             ) : (
-              <GoogleMap
-                mapContainerStyle={containerStyle}
-                center={mapCenter}
-                zoom={10}
-                onLoad={handleMapLoad}
-                onUnmount={handleMapUnmount}
-                options={mapOptions}
+              <select
+                value={selectedTechId}
+                onChange={(e) => {
+                  setSelectedTechId(e.target.value);
+                  setSelectedMarker(null);
+                }}
+                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-purple-500/50"
               >
-                {/* Draw polylines for selected technicians */}
-                {filteredDisplayShifts.map((shift) => {
-                  const track = userTracks[shift.userId] || [];
-                  const path = track
-                    .filter(pt => pt && typeof pt.lat === "number" && !isNaN(pt.lat) && typeof pt.lng === "number" && !isNaN(pt.lng))
-                    .map(pt => ({ lat: pt.lat, lng: pt.lng }));
-                  if (path.length < 2) return null;
-                  const isSelected = selectedTechId === shift.userId;
-                  
-                  return (
-                    <Polyline
-                      key={`poly-${shift.userId}`}
-                      path={path}
-                      options={{
-                        strokeColor: shift.shiftStatus === "on_shift" ? "#a855f7" : "#ffffff",
-                        strokeOpacity: isSelected ? 1.0 : 0.5,
-                        strokeWeight: isSelected ? 4 : 2,
-                      }}
-                    />
-                  );
-                })}
+                <option value="all">All Technicians</option>
+                {filteredShiftsByRegion.map((s) => (
+                  <option key={s.userId} value={s.userId}>{s.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
 
-                {/* Draw Markers for current positions */}
-                {filteredDisplayShifts.map((shift) => {
-                  if (!shift.gps) return null;
-                  return (
-                    <Marker
-                      key={shift.userId}
-                      position={{ lat: shift.gps.lat, lng: shift.gps.lng }}
-                      title={shift.name}
-                      onClick={() => setSelectedMarker(shift)}
-                      icon={{
-                        path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
-                        fillColor: shift.shiftStatus === "on_shift" ? "#a855f7" : "#ffffff",
-                        fillOpacity: 1,
-                        strokeWeight: 1,
-                        strokeColor: "#1a052e",
-                        scale: 1.5,
-                        anchor: new window.google.maps.Point(12, 24),
-                      }}
-                    />
-                  );
-                })}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Filter by Team</label>
+            <select
+              value={selectedTeamFilter}
+              onChange={(e) => setSelectedTeamFilter(e.target.value)}
+              disabled={user?.role === "Field Technician" || user?.role === "Technician"}
+              className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-purple-500/50 disabled:opacity-50"
+            >
+              <option value="all">All Teams</option>
+              {Array.from(new Set(filteredShiftsByRegion.map((s) => s.team).filter(Boolean))).sort().map((team) => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </div>
 
-                {/* Info Window rendering */}
-                {selectedMarker && selectedMarker.gps && (
-                  <InfoWindow
-                    position={{ lat: selectedMarker.gps.lat, lng: selectedMarker.gps.lng }}
-                    onCloseClick={() => setSelectedMarker(null)}
-                    options={{ pixelOffset: new window.google.maps.Size(0, -35) }}
-                  >
-                    <div className="bg-white p-2 rounded-lg text-zinc-950 max-w-[200px]">
-                      <h3 className="font-bold text-sm mb-1">{selectedMarker.name}</h3>
-                      <p className="text-xs text-slate-600 mb-2 font-semibold">{selectedMarker.team}</p>
-                      <div className="space-y-1 text-[11px]">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Filter by Live Status</label>
+            <select
+              value={selectedStatusFilter}
+              onChange={(e) => setSelectedStatusFilter(e.target.value)}
+              className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-purple-500/50"
+            >
+              <option value="all">All Statuses</option>
+              <option value="on_shift">Active / On Shift</option>
+              <option value="on_break">On Break</option>
+              <option value="off_shift">Offline / Off Shift</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <Card className="border border-slate-800 bg-slate-950/40 backdrop-blur-xl">
+        <CardHeader title="Live Map View" />
+        <CardBody className="p-0 overflow-hidden rounded-b-2xl dark-map">
+          <MapContainer
+            center={[mapCenter.lat, mapCenter.lng]}
+            zoom={mapCenter.lat === 22.0 ? 5 : 10}
+            style={{ width: "100%", height: "650px" }}
+            zoomControl={true}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+
+            {/* Circular markers on Goa and Bhutan displayed only when viewing All Regions */}
+            {!selectedRegion && (
+              <>
+                <CircleMarker
+                  center={[15.4901, 73.8199]}
+                  radius={12}
+                  pathOptions={{
+                    fillColor: "#0f051d",
+                    color: "#ef4444",
+                    weight: 3,
+                    fillOpacity: 0.85,
+                    className: "blinking-marker"
+                  }}
+                  eventHandlers={{
+                    click: () => {
+                      setSelectedRegionId("goa");
+                    }
+                  }}
+                >
+                  <Popup>
+                    <div className="p-1 text-center min-w-[120px]">
+                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">🇮🇳 Goa Region</h4>
+                      <p className="text-[10px] text-slate-500 mt-1">Click to zoom & select</p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+
+                <CircleMarker
+                  center={[27.4728, 89.6393]}
+                  radius={12}
+                  pathOptions={{
+                    fillColor: "#1a1200",
+                    color: "#ef4444",
+                    weight: 3,
+                    fillOpacity: 0.85,
+                    className: "blinking-marker"
+                  }}
+                  eventHandlers={{
+                    click: () => {
+                      setSelectedRegionId("bhutan");
+                    }
+                  }}
+                >
+                  <Popup>
+                    <div className="p-1 text-center min-w-[120px]">
+                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">🇧🇹 Bhutan Region</h4>
+                      <p className="text-[10px] text-slate-500 mt-1">Click to zoom & select</p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              </>
+            )}
+            
+            <MapController
+              center={mapCenter}
+              selectedTechId={selectedTechId}
+              shifts={shifts}
+            />
+
+            {/* Draw polylines for selected technicians */}
+            {filteredDisplayShifts.map((shift) => {
+              const track = userTracks[shift.userId] || [];
+              const path = track
+                .filter(pt => pt && typeof pt.lat === "number" && !isNaN(pt.lat) && typeof pt.lng === "number" && !isNaN(pt.lng))
+                .map(pt => [pt.lat, pt.lng]);
+              if (path.length < 2) return null;
+              const isSelected = selectedTechId === shift.userId;
+              
+              return (
+                <Polyline
+                  key={`poly-${shift.userId}`}
+                  positions={path}
+                  pathOptions={{
+                    color: shift.shiftStatus === "on_shift" ? "#a855f7" : "#64748b",
+                    opacity: isSelected ? 1.0 : 0.4,
+                    weight: isSelected ? 4 : 2,
+                  }}
+                />
+              );
+            })}
+
+            {/* Draw Markers for current positions */}
+            {filteredDisplayShifts.map((shift) => {
+              if (!shift.gps) return null;
+              return (
+                <Marker
+                  key={shift.userId}
+                  position={[shift.gps.lat, shift.gps.lng]}
+                  icon={createCustomIcon(shift)}
+                  eventHandlers={{
+                    click: () => setSelectedMarker(shift),
+                  }}
+                >
+                  <Popup>
+                    <div className="p-1 min-w-[180px]">
+                      <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 mb-0.5">{shift.name}</h3>
+                      <p className="text-[11px] text-purple-650 dark:text-purple-400 font-semibold mb-1.5">{shift.team}</p>
+                      <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
                         {(() => {
-                          const techTicket = ticketsList.find(t => t.technician === selectedMarker.name);
-                          const track = userTracks[selectedMarker.userId] || [];
+                          const techTicket = ticketsList.find(t => t.technician === shift.name);
+                          const track = userTracks[shift.userId] || [];
                           let direction = "Stationary";
                           if (track.length >= 2) {
                             const p1 = track[track.length - 2];
@@ -622,22 +505,22 @@ export default function MapPage() {
                           return (
                             <>
                               <div className="flex justify-between">
-                                <span className="font-semibold">Ticket:</span>
-                                <span>{techTicket ? techTicket.id : "None"}</span>
+                                <span className="text-slate-450 dark:text-slate-400">Active Ticket:</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-200">{techTicket ? techTicket.id : "None"}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="font-semibold">Status:</span>
-                                <span className={techTicket ? "text-amber-600 font-bold" : ""}>
-                                  {techTicket ? techTicket.status : selectedMarker.shiftStatus}
+                                <span className="text-slate-450 dark:text-slate-400">Status:</span>
+                                <span className={techTicket ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-slate-700 dark:text-slate-200"}>
+                                  {techTicket ? techTicket.status : shift.shiftStatus === "on_shift" ? "Active" : shift.shiftStatus === "on_break" ? "On Break" : "Offline"}
                                 </span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="font-semibold">Travel Dir:</span>
-                                <span>{direction}</span>
+                                <span className="text-slate-450 dark:text-slate-400">Travel Dir:</span>
+                                <span className="text-slate-700 dark:text-slate-200">{direction}</span>
                               </div>
-                              <div className="flex flex-col mt-2 pt-2 border-t border-slate-200">
-                                <span className="font-semibold text-slate-500">Last Updated</span>
-                                <span className="text-slate-500">
+                              <div className="flex flex-col mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800">
+                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Last Signal</span>
+                                <span className="text-[10px] text-slate-600 dark:text-slate-400 font-mono mt-0.5">
                                   {track.length > 0 ? new Date(track[track.length - 1].timestamp).toLocaleTimeString() : "Just now"}
                                 </span>
                               </div>
@@ -646,229 +529,13 @@ export default function MapPage() {
                         })()}
                       </div>
                     </div>
-                  </InfoWindow>
-                )}
-              </GoogleMap>
-            )}
-          </CardBody>
-        </Card>
-      )}
-      {activeTab === "embed" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Panel: Controls (4 cols) */}
-          <div className="lg:col-span-4 space-y-6">
-            <Card className="border border-slate-800 bg-slate-950/40 backdrop-blur-xl">
-              <CardHeader title="Embed Configuration" subtitle="Configure iframe HTTP request" />
-              <CardBody className="p-5 space-y-4">
-                {/* Mode Selector */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Embed Mode</label>
-                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 border border-slate-850 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => setEmbedMode("place")}
-                      className={clsx(
-                        "py-1.5 rounded-lg text-xs font-semibold text-center transition-all",
-                        embedMode === "place" ? "bg-sky-500/20 text-sky-400 border border-sky-500/20" : "text-slate-400 border border-transparent"
-                      )}
-                    >
-                      Place Map
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEmbedMode("streetview")}
-                      className={clsx(
-                        "py-1.5 rounded-lg text-xs font-semibold text-center transition-all",
-                        embedMode === "streetview" ? "bg-sky-500/20 text-sky-400 border border-sky-500/20" : "text-slate-400 border border-transparent"
-                      )}
-                    >
-                      Street View
-                    </button>
-                  </div>
-                </div>
-
-                {/* Dynamic input depending on mode */}
-                {embedMode === "place" ? (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Search Place / Address</label>
-                    <input
-                      type="text"
-                      value={embedQuery}
-                      onChange={(e) => setEmbedQuery(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-sky-500/50"
-                      placeholder="e.g. Space Needle, Seattle WA"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Latitude, Longitude / Location</label>
-                    <input
-                      type="text"
-                      value={embedLocation}
-                      onChange={(e) => setEmbedLocation(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-sky-500/50"
-                      placeholder="e.g. 15.4909,73.8278 or Panaji, Goa"
-                    />
-                  </div>
-                )}
-
-                {/* Place Map Options */}
-                {embedMode === "place" && (
-                  <>
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Zoom Level</label>
-                        <span className="text-xs font-mono text-sky-400 font-bold">{zoomLevel}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="1"
-                        max="21"
-                        value={zoomLevel}
-                        onChange={(e) => setZoomLevel(parseInt(e.target.value))}
-                        className="w-full accent-sky-500 cursor-pointer h-1 bg-slate-800 rounded-lg appearance-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Map Type</label>
-                      <select
-                        value={mapType}
-                        onChange={(e) => setMapType(e.target.value)}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 outline-none focus:border-sky-500/50"
-                      >
-                        <option value="roadmap">Roadmap</option>
-                        <option value="satellite">Satellite</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {/* Presets */}
-                <div className="flex flex-col gap-2 pt-3 border-t border-slate-800/80">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Quick Presets</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (embedMode === "place") {
-                          setEmbedQuery("Space Needle, Seattle WA");
-                        } else {
-                          setEmbedLocation("47.6205,-122.3493");
-                        }
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-[10px] font-semibold bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white text-slate-300 transition-colors"
-                    >
-                      Space Needle
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (embedMode === "place") {
-                          setEmbedQuery("Panaji, Goa, India");
-                        } else {
-                          setEmbedLocation("15.4909,73.8278");
-                        }
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-[10px] font-semibold bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white text-slate-300 transition-colors"
-                    >
-                      Panaji, Goa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (embedMode === "place") {
-                          setEmbedQuery("Thimphu, Bhutan");
-                        } else {
-                          setEmbedLocation("27.4728,89.6393");
-                        }
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-[10px] font-semibold bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white text-slate-300 transition-colors"
-                    >
-                      Thimphu, Bhutan
-                    </button>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* Quick Technician list */}
-            <Card className="border border-slate-800 bg-slate-950/40 backdrop-blur-xl">
-              <CardHeader title="Technician Live Locations" subtitle="Select a tech to load their location" />
-              <CardBody className="p-4 max-h-[200px] overflow-y-auto space-y-2">
-                {filteredShiftsByRegion.map((s) => (
-                  <button
-                    key={s.userId}
-                    onClick={() => {
-                      setSelectedTechId(s.userId);
-                      if (s.gps) {
-                        const coords = `${s.gps.lat.toFixed(6)},${s.gps.lng.toFixed(6)}`;
-                        setEmbedLocation(coords);
-                        setEmbedQuery(s.gps.address || coords);
-                      }
-                    }}
-                    className={clsx(
-                      "w-full flex items-center justify-between rounded-xl border p-2 text-left text-xs transition-all",
-                      selectedTechId === s.userId
-                        ? "border-sky-500/50 bg-slate-800/80"
-                        : "border-slate-800 bg-slate-900/20 hover:border-slate-750"
-                    )}
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-200">{s.name}</p>
-                      <p className="text-[10px] text-slate-500">{s.team}</p>
-                    </div>
-                    <span className="text-[10px] font-mono text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-md">
-                      {s.shiftStatus === "on_shift" ? "Active" : "Offline"}
-                    </span>
-                  </button>
-                ))}
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* Right Panel: Iframe View (8 cols) */}
-          <div className="lg:col-span-8 space-y-4">
-            <Card className="border border-slate-800 bg-slate-950/40 backdrop-blur-xl">
-              <CardHeader
-                title={`Maps Embed API Iframe View (${embedMode === "place" ? "Place Mode" : "Street View Mode"})`}
-                subtitle="Direct HTTP Request - Zero JS Loading"
-              />
-              <CardBody className="p-4 space-y-4">
-                <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 aspect-video lg:h-[450px] w-full">
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    loading="lazy"
-                    allowFullScreen
-                    referrerPolicy="no-referrer-when-downgrade"
-                    src={embedUrl}
-                  />
-                </div>
-
-                {/* Generated Code Block */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Generated HTML Code</label>
-                  <div className="relative rounded-xl border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-slate-300 select-all overflow-x-auto">
-                    {`<iframe
-  width="100%"
-  height="450"
-  style="border:0"
-  loading="lazy"
-  allowfullscreen
-  referrerpolicy="no-referrer-when-downgrade"
-  src="${embedUrl.replace(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "116619c5cc773e01f19fcdd604916991", "YOUR_API_KEY")}">
-</iframe>`}
-                  </div>
-                  <p className="text-[10px] text-slate-500">
-                    Note: The API Key has been replaced with <code className="text-slate-400 font-mono">YOUR_API_KEY</code> for security if you copy this code snippet.
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-        </div>
-      )}
+                  </Popup>
+                </Marker>
+              );
+            })}
+          </MapContainer>
+        </CardBody>
+      </Card>
     </div>
   );
 }

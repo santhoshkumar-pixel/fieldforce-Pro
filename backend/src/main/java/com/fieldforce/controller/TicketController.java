@@ -95,6 +95,7 @@ public class TicketController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: insufficient permissions"));
         }
         List<Ticket> all = ticketRepository.findAllByOrderByIdDesc();
+        all.forEach(Ticket::updateSlaStatuses);
         if (zoneHeader != null && !zoneHeader.isEmpty()) {
             all = all.stream()
                 .filter(t -> permissionService.hasRegionAccess(roleHeader, zoneHeader, t.getZone()))
@@ -115,6 +116,7 @@ public class TicketController {
             if (!permissionService.hasRegionAccess(roleHeader, zoneHeader, ticket.getZone())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: cross-region access not allowed"));
             }
+            ticket.updateSlaStatuses();
             return ResponseEntity.ok(ticket);
         }).orElse(ResponseEntity.notFound().build());
     }
@@ -141,6 +143,7 @@ public class TicketController {
         if (ticket.getCreatedAt() == null) {
             ticket.setCreatedAt(Instant.now());
         }
+        ticket.calculateSlaDeadlines();
         String creator = userNameHeader != null ? userNameHeader : "Admin";
         if (ticket.getCreatedBy() == null || ticket.getCreatedBy().isEmpty()) {
             ticket.setCreatedBy(creator);
@@ -262,6 +265,39 @@ public class TicketController {
                 ticket.setCreatedBy(ticketDetails.getCreatedBy() != null ? ticketDetails.getCreatedBy() : "Admin");
             }
 
+            String oldPriority = ticket.getPriority();
+
+            // Clear response times on tech reassignment
+            if (ticketDetails.getTechnician() != null && !ticketDetails.getTechnician().equalsIgnoreCase(oldTech)) {
+                ticket.setAcceptedAt(null);
+                ticket.setReachedSiteAt(null);
+            } else {
+                ticket.setAcceptedAt(ticketDetails.getAcceptedAt());
+                ticket.setReachedSiteAt(ticketDetails.getReachedSiteAt());
+            }
+
+            // Capture timestamps based on status change
+            String newStatus = ticketDetails.getStatus();
+            if (!newStatus.equalsIgnoreCase(oldStatus)) {
+                if ("ACCEPTED".equalsIgnoreCase(newStatus) || "TRAVELLING".equalsIgnoreCase(newStatus)) {
+                    if (ticket.getAcceptedAt() == null) {
+                        ticket.setAcceptedAt(Instant.now());
+                    }
+                    ticket.setRespondedAt(Instant.now());
+                } else if ("REVIEW".equalsIgnoreCase(newStatus)) {
+                    if (ticket.getReachedSiteAt() == null) {
+                        ticket.setReachedSiteAt(Instant.now());
+                    }
+                } else if ("COMPLETED".equalsIgnoreCase(newStatus)) {
+                    if (ticket.getResolvedAt() == null) {
+                        ticket.setResolvedAt(Instant.now());
+                    }
+                    ticket.setCompletedAt(Instant.now());
+                }
+            } else {
+                ticket.setResolvedAt(ticketDetails.getResolvedAt());
+            }
+
             ticket.setCustomer(ticketDetails.getCustomer());
             ticket.setSite(ticketDetails.getSite());
             ticket.setTechnician(ticketDetails.getTechnician());
@@ -269,7 +305,6 @@ public class TicketController {
             ticket.setIssue(ticketDetails.getIssue());
             ticket.setStatus(ticketDetails.getStatus());
             ticket.setSlaTime(ticketDetails.getSlaTime());
-            ticket.setSlaOverdue(ticketDetails.getSlaOverdue());
             ticket.setSentAt(ticketDetails.getSentAt());
             ticket.setRespondedAt(ticketDetails.getRespondedAt());
             ticket.setCreatedAt(ticketDetails.getCreatedAt());
@@ -278,6 +313,14 @@ public class TicketController {
             ticket.setJobType(ticketDetails.getJobType());
             ticket.setDeviceId(ticketDetails.getDeviceId());
             ticket.setDeviceName(ticketDetails.getDeviceName());
+
+            // Check if priority changed or deadlines are null, recalculate SLA deadlines
+            if (ticket.getAckDeadline() == null || !ticket.getPriority().equalsIgnoreCase(oldPriority)) {
+                ticket.calculateSlaDeadlines();
+            } else {
+                ticket.updateSlaStatuses();
+            }
+
             Ticket saved = ticketRepository.save(ticket);
 
             String actor = userNameHeader != null ? userNameHeader : "Admin";
@@ -349,13 +392,35 @@ public class TicketController {
             }
             String oldStatus = ticket.getStatus();
             ticket.setStatus(status);
-            if ("ACCEPTED".equalsIgnoreCase(status) || "REJECTED".equalsIgnoreCase(status)) {
+            
+            if ("ACCEPTED".equalsIgnoreCase(status) || "TRAVELLING".equalsIgnoreCase(status)) {
+                if (ticket.getAcceptedAt() == null) {
+                    ticket.setAcceptedAt(Instant.now());
+                }
+                ticket.setRespondedAt(Instant.now());
+            } else if ("REJECTED".equalsIgnoreCase(status)) {
                 ticket.setRespondedAt(Instant.now());
             }
+            
+            if ("REVIEW".equalsIgnoreCase(status)) {
+                if (ticket.getReachedSiteAt() == null) {
+                    ticket.setReachedSiteAt(Instant.now());
+                }
+            }
+            
             if ("COMPLETED".equalsIgnoreCase(status)) {
-                ticket.setSlaTime("02:57");
-                ticket.setSlaOverdue(false);
+                if (ticket.getResolvedAt() == null) {
+                    ticket.setResolvedAt(Instant.now());
+                }
                 ticket.setCompletedAt(Instant.now());
+                ticket.setSlaTime("02:57");
+            }
+            
+            // Ensure SLA deadlines are populated and statuses are updated
+            if (ticket.getAckDeadline() == null) {
+                ticket.calculateSlaDeadlines();
+            } else {
+                ticket.updateSlaStatuses();
             }
             Ticket saved = ticketRepository.save(ticket);
 

@@ -26,6 +26,7 @@ import { useDevice } from "../context/DeviceContext";
 import { useAuth } from "../context/AuthContext";
 import { getUserPlace } from "../utils/roleHelpers";
 import { api } from "../utils/api";
+import CustomSelect from "../components/ui/CustomSelect";
 
 const toneMap = {
  Total: "indigo",
@@ -114,6 +115,20 @@ export default function InventoryPage() {
  const types = regionalDevices.map((d) => d.type).filter(Boolean);
  return Array.from(new Set(types)).sort();
  }, [regionalDevices]);
+
+ const typeOptions = useMemo(() => [
+   { value: "all", label: "All Types" },
+   ...uniqueTypes.map((t) => ({ value: t, label: t })),
+ ], [uniqueTypes]);
+
+ const statusOptions = useMemo(() => [
+   { value: "all", label: "All Statuses" },
+   { value: "Online", label: "Online" },
+   { value: "Offline", label: "Offline" },
+   { value: "Warning", label: "Warning" },
+   { value: "Critical", label: "Critical" },
+   { value: "Maintenance Required", label: "Maintenance" },
+ ], []);
 
  // Filter lists based on tab and filters
  const currentList = useMemo(() => {
@@ -372,30 +387,24 @@ export default function InventoryPage() {
  />
  </div>
  <div className="flex gap-2">
- <select
+ <CustomSelect
  value={typeFilter}
  onChange={(e) => setTypeFilter(e.target.value)}
- className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-500/50"
- >
- <option value="all">All Types</option>
- {uniqueTypes.map((t) => (
- <option key={t} value={t}>
- {t}
- </option>
- ))}
- </select>
- <select
+ options={typeOptions}
+ className="text-slate-100 !px-3 !py-2 !rounded-2xl !border-slate-700 bg-slate-950 text-sm font-normal"
+ dropdownClassName="bg-slate-950 border-slate-700 text-sm font-normal w-full"
+ containerClassName="w-36 sm:w-40"
+ fullWidth
+ />
+ <CustomSelect
  value={statusFilter}
  onChange={(e) => setStatusFilter(e.target.value)}
- className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-500/50"
- >
- <option value="all">All Statuses</option>
- <option value="Online">Online</option>
- <option value="Offline">Offline</option>
- <option value="Warning">Warning</option>
- <option value="Critical">Critical</option>
- <option value="Maintenance Required">Maintenance</option>
- </select>
+ options={statusOptions}
+ className="text-slate-100 !px-3 !py-2 !rounded-2xl !border-slate-700 bg-slate-950 text-sm font-normal"
+ dropdownClassName="bg-slate-950 border-slate-700 text-sm font-normal w-full"
+ containerClassName="w-36 sm:w-40"
+ fullWidth
+ />
  </div>
  </div>
 

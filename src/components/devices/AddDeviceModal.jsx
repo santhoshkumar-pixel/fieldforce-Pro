@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import CustomSelect from "../ui/CustomSelect";
 
 const DEVICE_STATUSES = [
  "Online",
@@ -8,10 +9,13 @@ const DEVICE_STATUSES = [
  "Critical",
  "Maintenance Required",
 ];
+const DEVICE_STATUS_OPTIONS = DEVICE_STATUSES.map((s) => ({ value: s, label: s }));
 
 const CONNECTIVITY_OPTIONS = ["LTE", "WiFi", "LoRa", "Ethernet", "None"];
+const CONNECTIVITY_OPTIONS_DATA = CONNECTIVITY_OPTIONS.map((c) => ({ value: c, label: c }));
 
 const DEVICE_TYPES = ["FastScan", "Mini", "Ace", "Go"];
+const DEVICE_TYPE_OPTIONS = DEVICE_TYPES.map((t) => ({ value: t, label: t }));
 
 const inputClass =
  "mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20";
@@ -91,17 +95,14 @@ export default function AddDeviceModal({ open, onClose, onSubmit, suggestedId, i
 
  <label className="block text-sm font-medium text-slate-300">
  Device type
- <select
+ <CustomSelect
  value={type}
  onChange={(e) => setType(e.target.value)}
- className={inputClass}
- >
- {DEVICE_TYPES.map((t) => (
- <option key={t} value={t}>
- {t}
- </option>
- ))}
- </select>
+ options={DEVICE_TYPE_OPTIONS}
+ className="mt-1 w-full text-slate-100 !px-3 !py-2 !rounded-xl !border-slate-700 bg-slate-950 text-[13px] font-normal"
+ dropdownClassName="w-full bg-slate-950 border-slate-700 text-sm font-normal"
+ fullWidth
+ />
  </label>
 
  <label className="block text-sm font-medium text-slate-300">
@@ -117,32 +118,26 @@ export default function AddDeviceModal({ open, onClose, onSubmit, suggestedId, i
  <div className="grid gap-4 sm:grid-cols-2">
  <label className="block text-sm font-medium text-slate-300">
  Status
- <select
+ <CustomSelect
  value={status}
  onChange={(e) => setStatus(e.target.value)}
- className={inputClass}
- >
- {DEVICE_STATUSES.map((s) => (
- <option key={s} value={s}>
- {s}
- </option>
- ))}
- </select>
+ options={DEVICE_STATUS_OPTIONS}
+ className="mt-1 w-full text-slate-100 !px-3 !py-2 !rounded-xl !border-slate-700 bg-slate-950 text-[13px] font-normal"
+ dropdownClassName="w-full bg-slate-950 border-slate-700 text-sm font-normal"
+ fullWidth
+ />
  </label>
 
  <label className="block text-sm font-medium text-slate-300">
  Connectivity
- <select
+ <CustomSelect
  value={connectivity}
  onChange={(e) => setConnectivity(e.target.value)}
- className={inputClass}
- >
- {CONNECTIVITY_OPTIONS.map((c) => (
- <option key={c} value={c}>
- {c}
- </option>
- ))}
- </select>
+ options={CONNECTIVITY_OPTIONS_DATA}
+ className="mt-1 w-full text-slate-100 !px-3 !py-2 !rounded-xl !border-slate-700 bg-slate-950 text-[13px] font-normal"
+ dropdownClassName="w-full bg-slate-950 border-slate-700 text-sm font-normal"
+ fullWidth
+ />
  </label>
  </div>
 

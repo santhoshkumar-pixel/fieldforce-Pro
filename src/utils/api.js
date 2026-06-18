@@ -187,4 +187,15 @@ export const api = {
       return await response.json();
     },
   },
+
+  sla: {
+    getMetrics: () => request("/api/sla/metrics"),
+    getTechnicianPerformance: () => request("/api/sla/technicians"),
+    getReports: (params = {}) => {
+      const query = new URLSearchParams(
+        Object.entries(params).filter(([_, v]) => v != null && v !== "")
+      ).toString();
+      return request(`/api/sla/reports${query ? `?${query}` : ""}`);
+    },
+  },
 };

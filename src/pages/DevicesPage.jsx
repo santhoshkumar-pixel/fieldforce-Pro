@@ -12,6 +12,7 @@ import { useDevice } from "../context/DeviceContext";
 import { buildDeviceHealthStats, nextDeviceId } from "../utils/deviceHelpers";
 import { useAuth } from "../context/AuthContext";
 import { getUserPlace } from "../utils/roleHelpers";
+import CustomSelect from "../components/ui/CustomSelect";
 
 const toneMap = {
  Total: "indigo",
@@ -77,6 +78,25 @@ export default function DevicesPage() {
  const sites = placeDevices.map((d) => d.site).filter(Boolean);
  return Array.from(new Set(sites)).sort();
  }, [placeDevices]);
+
+  const statusOptions = useMemo(() => [
+    { value: "all", label: "All statuses" },
+    { value: "Online", label: "Online" },
+    { value: "Offline", label: "Offline" },
+    { value: "Warning", label: "Warning" },
+    { value: "Critical", label: "Critical" },
+    { value: "Maintenance Required", label: "Maintenance Required" },
+  ], []);
+
+  const typeOptions = useMemo(() => [
+    { value: "all", label: "All Types" },
+    ...uniqueTypes.map((t) => ({ value: t, label: t })),
+  ], [uniqueTypes]);
+
+  const cpOptions = useMemo(() => [
+    { value: "all", label: "All CPs" },
+    ...uniqueCps.map((c) => ({ value: c, label: c })),
+  ], [uniqueCps]);
 
  const filtered = placeDevices.filter((d) => {
  const q = search.toLowerCase();
@@ -218,48 +238,33 @@ export default function DevicesPage() {
 className="w-full rounded-2xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-4 text-sm text-slate-100 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
  />
  </div>
-<select
- value={statusFilter}
- onChange={(e) => setStatusFilter(e.target.value)}
- className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
- >
- <option value="all">All statuses</option>
- {[
- "Online",
- "Offline",
- "Warning",
- "Critical",
- "Maintenance Required",
- ].map((s) => (
- <option key={s} value={s}>
- {s}
- </option>
- ))}
- </select>
- <select
- value={typeFilter}
- onChange={(e) => setTypeFilter(e.target.value)}
- className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-500/50"
- >
- <option value="all">All Types</option>
- {uniqueTypes.map((t) => (
- <option key={t} value={t}>
- {t}
- </option>
- ))}
- </select>
- <select
- value={cpFilter}
- onChange={(e) => setCpFilter(e.target.value)}
- className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-500/50"
- >
- <option value="all">All CPs</option>
- {uniqueCps.map((c) => (
- <option key={c} value={c}>
- {c}
- </option>
- ))}
- </select>
+ <CustomSelect
+  value={statusFilter}
+  onChange={(e) => setStatusFilter(e.target.value)}
+  options={statusOptions}
+  className="text-slate-100 !px-4 !py-2.5 !rounded-2xl !border-slate-700 bg-slate-950 text-sm font-normal"
+  dropdownClassName="bg-slate-950 border-slate-700 text-sm font-normal w-full"
+  containerClassName="w-full lg:w-48"
+  fullWidth
+ />
+ <CustomSelect
+  value={typeFilter}
+  onChange={(e) => setTypeFilter(e.target.value)}
+  options={typeOptions}
+  className="text-slate-100 !px-4 !py-2.5 !rounded-2xl !border-slate-700 bg-slate-950 text-sm font-normal"
+  dropdownClassName="bg-slate-950 border-slate-700 text-sm font-normal w-full"
+  containerClassName="w-full lg:w-48"
+  fullWidth
+ />
+ <CustomSelect
+  value={cpFilter}
+  onChange={(e) => setCpFilter(e.target.value)}
+  options={cpOptions}
+  className="text-slate-100 !px-4 !py-2.5 !rounded-2xl !border-slate-700 bg-slate-950 text-sm font-normal"
+  dropdownClassName="bg-slate-950 border-slate-700 text-sm font-normal w-full"
+  containerClassName="w-full lg:w-48"
+  fullWidth
+ />
  </div>
 
  <div className="overflow-x-auto">
