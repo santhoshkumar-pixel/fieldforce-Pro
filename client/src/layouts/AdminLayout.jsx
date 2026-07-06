@@ -343,7 +343,7 @@ export default function AdminLayout() {
   return (
   <div className="h-screen bg-slate-900/30 dark:bg-slate-950/45 text-slate-100 bg-glow-container overflow-hidden">
   <div className="mx-auto flex h-full w-full max-w-none flex-col gap-0 p-0 overflow-hidden">
-  <header className="relative z-20 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 rounded-none border-b border-slate-800/80 bg-slate-900/80 p-4 shadow-[0_0_50px_rgba(15,23,42,0.25)] backdrop-blur-xl shrink-0">
+  <header className="relative z-20 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 rounded-none border-b border-slate-800/80 bg-slate-900/80 p-4 backdrop-blur-xl shrink-0">
  {/* Left: logo + title */}
  <div className="flex min-w-0 flex-shrink-0 items-center gap-4">
  <button
