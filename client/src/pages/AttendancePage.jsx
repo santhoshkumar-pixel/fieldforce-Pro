@@ -391,8 +391,8 @@ export default function AttendancePage() {
  </div>
  </div>
 
- {/* Actions */}
- {!isSuperAdmin && (
+ {/* Actions — only visible for the logged-in user's own record */}
+ {myRecord.userId === user?.id && !isSuperAdmin && (
  <div className="pt-2 space-y-2">
  <div className="grid grid-cols-2 gap-2">
  <button
@@ -435,6 +435,12 @@ export default function AttendancePage() {
  </button>
  </div>
  </div>
+ )}
+ {myRecord.userId !== user?.id && canViewAllAttendance && (
+   <div className="pt-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 flex items-center gap-2 text-xs text-slate-500">
+     <MapPin className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+     <span>Read-only monitoring view. Punch controls are available only to the technician's own account.</span>
+   </div>
  )}
  </div>
  ) : (
