@@ -816,7 +816,7 @@ export default function ActivityLogsPage() {
                   Ticket IDs — {filteredTickets.length} found
                 </p>
 
-                <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                <div className="space-y-2 pr-1">
                   {paginatedTickets.map(ticket => {
                     return (
                       <button
