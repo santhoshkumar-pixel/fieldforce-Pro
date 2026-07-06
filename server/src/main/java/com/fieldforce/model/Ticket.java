@@ -119,6 +119,9 @@ public class Ticket implements RegionBound {
     @Column(name = "created_by", length = 100)
     private String createdBy;
 
+    @Column(name = "created_by_user_id", length = 100)
+    private String createdByUserId;
+
     // Constructors
     public Ticket() {}
 
@@ -224,6 +227,9 @@ public class Ticket implements RegionBound {
 
     public String getCreatedBy() { return createdBy; }
     public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+
+    public String getCreatedByUserId() { return createdByUserId; }
+    public void setCreatedByUserId(String createdByUserId) { this.createdByUserId = createdByUserId; }
 
     public Instant getAcceptedAt() { return acceptedAt; }
     public void setAcceptedAt(Instant acceptedAt) { this.acceptedAt = acceptedAt; }

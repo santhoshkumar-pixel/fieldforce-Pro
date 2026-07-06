@@ -755,11 +755,13 @@ export const api = {
 
     create: (ticket) => request("/api/tickets", { method: "POST", body: ticket }),
     update: (id, ticket) => request(`/api/tickets/${id}`, { method: "PUT", body: ticket }),
-    updateStatus: (id, status) =>
-      request(`/api/tickets/${id}/status`, {
+    updateStatus: (id, payload) => {
+      const body = typeof payload === "string" ? { status: payload } : payload;
+      return request(`/api/tickets/${id}/status`, {
         method: "PATCH",
-        body: { status },
-      }),
+        body,
+      });
+    },
     reject: (id, reason) =>
       request(`/api/tickets/${id}/reject`, {
         method: "PATCH",

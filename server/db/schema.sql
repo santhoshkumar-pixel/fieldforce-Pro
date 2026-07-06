@@ -269,3 +269,7 @@ CREATE TABLE IF NOT EXISTS permissions (
     description TEXT
 );
 
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR(100);
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS user_id VARCHAR(100);
+
+

@@ -287,14 +287,14 @@ ON CONFLICT (id) DO NOTHING;
 
 
 -- 9. Insert Notifications
-INSERT INTO notifications (id, title, time_label, type, unread, created_at) VALUES
-('N-001', 'New ticket TK-1005 escalated — Bicholim Plant', '2m ago', 'escalation', true, NOW() - INTERVAL '2 minutes'),
-('N-002', 'SLA warning on TK-1002 — 5h remaining', '10m ago', 'sla', true, NOW() - INTERVAL '10 minutes'),
-('N-003', 'Device MCH932 went offline at Vasco Tower', '32m ago', 'device', true, NOW() - INTERVAL '32 minutes'),
-('N-004', 'North Goa squad completed 8 tickets today', '1h ago', 'info', false, NOW() - INTERVAL '1 hour'),
-('N-005', 'Operational Manager approval required for TK-1004 override', '2h ago', 'alert', false, NOW() - INTERVAL '2 hours'),
-('N-006', 'Firmware sync failed on 3 devices in Ponda zone', '3h ago', 'device', false, NOW() - INTERVAL '3 hours')
-ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, time_label = EXCLUDED.time_label, type = EXCLUDED.type, unread = EXCLUDED.unread, created_at = EXCLUDED.created_at;
+INSERT INTO notifications (id, title, time_label, type, unread, created_at, user_id) VALUES
+('N-001', 'New ticket TK-1005 escalated — Bicholim Plant', '2m ago', 'escalation', true, NOW() - INTERVAL '2 minutes', 'U-001'),
+('N-002', 'SLA warning on TK-1002 — 5h remaining', '10m ago', 'sla', true, NOW() - INTERVAL '10 minutes', 'U-001'),
+('N-003', 'Device MCH932 went offline at Vasco Tower', '32m ago', 'device', true, NOW() - INTERVAL '32 minutes', 'U-001'),
+('N-004', 'North Goa squad completed 8 tickets today', '1h ago', 'info', false, NOW() - INTERVAL '1 hour', 'U-001'),
+('N-005', 'Operational Manager approval required for TK-1004 override', '2h ago', 'alert', false, NOW() - INTERVAL '2 hours', 'U-001'),
+('N-006', 'Firmware sync failed on 3 devices in Ponda zone', '3h ago', 'device', false, NOW() - INTERVAL '3 hours', 'U-001')
+ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, time_label = EXCLUDED.time_label, type = EXCLUDED.type, unread = EXCLUDED.unread, created_at = EXCLUDED.created_at, user_id = EXCLUDED.user_id;
 
 -- 10. Insert Training Materials
 INSERT INTO training_materials (id, title, description, type, targeted_role, content, file_name, file_path) VALUES

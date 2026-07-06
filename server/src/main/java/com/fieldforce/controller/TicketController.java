@@ -1,7 +1,9 @@
 package com.fieldforce.controller;
 
 import com.fieldforce.model.Ticket;
+import com.fieldforce.model.Notification;
 import com.fieldforce.repository.TicketRepository;
+import com.fieldforce.repository.NotificationRepository;
 import com.fieldforce.service.PermissionService;
 import com.fieldforce.service.TicketInventorySyncService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +24,9 @@ public class TicketController {
 
     @Autowired
     private TicketRepository ticketRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
 
     @Autowired
     private PermissionService permissionService;
@@ -142,6 +147,43 @@ public class TicketController {
 
     private boolean isCompletedStatus(String status) {
         return "COMPLETED".equalsIgnoreCase(status) || "TECH_SUPPORT_COMPLETED".equalsIgnoreCase(status);
+    }
+
+    private String getCreatorUserId(Ticket ticket) {
+        if (ticket.getCreatedByUserId() != null && !ticket.getCreatedByUserId().isEmpty()) {
+            return ticket.getCreatedByUserId();
+        }
+        String creatorName = ticket.getCreatedBy();
+        if (creatorName == null || creatorName.isEmpty()) {
+            creatorName = ticket.getCustomer();
+        }
+        if (creatorName != null && !creatorName.isEmpty()) {
+            Optional<com.fieldforce.model.User> userOpt = userRepository.findByName(creatorName);
+            if (userOpt.isPresent()) {
+                return userOpt.get().getId();
+            }
+            Optional<com.fieldforce.model.User> userByEmail = userRepository.findByEmail(creatorName);
+            if (userByEmail.isPresent()) {
+                return userByEmail.get().getId();
+            }
+        }
+        return "U-001"; // Fallback
+    }
+
+    private void sendTicketNotification(Ticket ticket, String title, String type, String mediaDataUrl, String mediaType) {
+        String creatorUserId = getCreatorUserId(ticket);
+        Notification notif = new Notification();
+        notif.setId("N-" + System.currentTimeMillis() + "-" + (int)(Math.random() * 1000));
+        notif.setTitle(title);
+        notif.setTimeLabel("Just now");
+        notif.setType(type);
+        notif.setUnread(true);
+        notif.setCreatedAt(Instant.now());
+        notif.setUserId(creatorUserId);
+        notif.setMediaDataUrl(mediaDataUrl);
+        notif.setMediaType(mediaType);
+        notificationRepository.save(notif);
+        System.out.println("Routed notification to ticket creator " + creatorUserId + ": " + title);
     }
 
     private Optional<com.fieldforce.model.User> findUserByIdentifier(String identifier) {
@@ -272,7 +314,8 @@ public class TicketController {
             @RequestBody Ticket ticket, 
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
             @RequestHeader(value = "X-User-Zone", required = false) String zoneHeader,
-            @RequestHeader(value = "X-User-Name", required = false) String userNameHeader) {
+            @RequestHeader(value = "X-User-Name", required = false) String userNameHeader,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader) {
         if (roleHeader == null || (!permissionService.hasPermission(roleHeader, "tickets.assign") && !permissionService.hasPermission(roleHeader, "tickets.update"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: insufficient permissions"));
         }
@@ -307,6 +350,9 @@ public class TicketController {
         String creator = userNameHeader != null ? userNameHeader : "Admin";
         if (ticket.getCreatedBy() == null || ticket.getCreatedBy().isEmpty()) {
             ticket.setCreatedBy(creator);
+        }
+        if (ticket.getCreatedByUserId() == null || ticket.getCreatedByUserId().isEmpty()) {
+            ticket.setCreatedByUserId(userIdHeader != null ? userIdHeader : "U-001");
         }
         Ticket saved = ticketRepository.save(ticket);
 
@@ -692,6 +738,44 @@ public class TicketController {
             
             Ticket saved = ticketRepository.save(ticket);
 
+            // Generate notification for ticket creator
+            if (!status.equalsIgnoreCase(oldStatus)) {
+                String message = body.get("message");
+                String mediaFileName = body.get("mediaFileName");
+                String mediaDataUrl = body.get("mediaDataUrl");
+                String mediaType = body.get("mediaType");
+
+                if ("REVIEW".equalsIgnoreCase(status)) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("🗺️ ").append(actorDisplayName).append(" has reached the site for ticket ").append(saved.getId()).append(".");
+                    if (message != null && !message.trim().isEmpty()) {
+                        sb.append(" Message: \"").append(message.trim()).append("\"");
+                    }
+                    if (mediaFileName != null && !mediaFileName.trim().isEmpty()) {
+                        sb.append(" Attachment: ").append(mediaFileName.trim());
+                    }
+                    sendTicketNotification(saved, sb.toString(), "ticket", mediaDataUrl, mediaType);
+                } else if ("REVIEWED".equalsIgnoreCase(status)) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("✅ Work review submitted by ").append(actorDisplayName).append(" for ticket ").append(saved.getId()).append(".");
+                    if (message != null && !message.trim().isEmpty()) {
+                        sb.append(" Notes: \"").append(message.trim()).append("\"");
+                    }
+                    if (mediaFileName != null && !mediaFileName.trim().isEmpty()) {
+                        sb.append(" Attachment: ").append(mediaFileName.trim());
+                    }
+                    sb.append(" Click Complete to close the ticket.");
+                    sendTicketNotification(saved, sb.toString(), "ticket", mediaDataUrl, mediaType);
+                } else if ("COMPLETED".equalsIgnoreCase(status)) {
+                    String msg = "🎉 Ticket " + saved.getId() + " has been completed by " + actorDisplayName + ".";
+                    sendTicketNotification(saved, msg, "ticket", null, null);
+                } else if ("REJECTED".equalsIgnoreCase(status)) {
+                    String reason = body.get("reason");
+                    String msg = "❌ Ticket " + saved.getId() + " rejected by " + actorDisplayName + (reason != null && !reason.trim().isEmpty() ? " — Reason: " + reason : "");
+                    sendTicketNotification(saved, msg, "alert", null, null);
+                }
+            }
+
             // Sync inventory for status transitions
             if (!status.equalsIgnoreCase(oldStatus)) {
                 if ("COMPLETED".equalsIgnoreCase(status)) {
@@ -770,6 +854,9 @@ public class TicketController {
             String logDesc = "Rejected by " + actor + "\nReason:\n" + reason;
             logTechnicianActivity(saved.getTechnician() != null ? saved.getTechnician() : actor, saved.getId(), "REJECTED", logDesc, actor);
 
+            String notifMsg = "❌ Ticket " + saved.getId() + " rejected by " + actor + (reason != null && !reason.trim().isEmpty() ? " — Reason: " + reason : "");
+            sendTicketNotification(saved, notifMsg, "alert", null, null);
+
             return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
@@ -831,6 +918,9 @@ public class TicketController {
             String logDesc = "Ticket Escalated to " + (escalationType != null ? escalationType : "WAREHOUSE") + " by " + userNameHeader + " (" + roleHeader + ") with reason: " + reason + ". Old assigned user: " + oldTech;
             logTechnicianActivity(oldTech, saved.getId(), "ESCALATED", logDesc, userNameHeader);
             
+            String notifMsg = "⚠️ Ticket " + saved.getId() + " escalated to " + (escalationType != null ? escalationType : "WAREHOUSE") + " by " + (userNameHeader != null ? userNameHeader : "Technician") + (reason != null && !reason.trim().isEmpty() ? " — Reason: " + reason : "");
+            sendTicketNotification(saved, notifMsg, "alert", null, null);
+
             return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }

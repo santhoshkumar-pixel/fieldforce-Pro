@@ -31,6 +31,9 @@ public class Notification {
     @Column(name = "media_type", length = 50)
     private String mediaType;
 
+    @Column(name = "user_id", length = 100)
+    private String userId;
+
     // Constructors
     public Notification() {}
 
@@ -67,4 +70,7 @@ public class Notification {
 
     public String getMediaType() { return mediaType; }
     public void setMediaType(String mediaType) { this.mediaType = mediaType; }
+
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
 }

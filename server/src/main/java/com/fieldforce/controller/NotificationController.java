@@ -21,23 +21,15 @@ public class NotificationController {
 
     @GetMapping
     public List<Notification> getAllNotifications(
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
-            @RequestHeader(value = "X-User-Zone", required = false) String zoneHeader) {
-        List<Notification> all = notificationRepository.findAllByOrderByCreatedAtDesc();
-        if (roleHeader != null && !"Super Admin".equalsIgnoreCase(roleHeader) && !"Admin".equalsIgnoreCase(roleHeader) && !"Warehouse Manager".equalsIgnoreCase(roleHeader)) {
-            String userRegion = permissionService.getZoneRegion(zoneHeader);
-            if (userRegion != null) {
-                all = all.stream()
-                    .filter(n -> {
-                        if (n.getTitle() == null) return false;
-                        String titleLower = n.getTitle().toLowerCase();
-                        String notifRegion = (titleLower.contains("thimphu") || titleLower.contains("paro") || titleLower.contains("bhutan")) ? "Bhutan" : "Goa";
-                        return userRegion.equalsIgnoreCase(notifRegion);
-                    })
-                    .collect(java.util.stream.Collectors.toList());
-            }
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        if (roleHeader != null && "Super Admin".equalsIgnoreCase(roleHeader.trim())) {
+            return notificationRepository.findAllByOrderByCreatedAtDesc();
         }
-        return all;
+        if (userIdHeader == null || userIdHeader.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return notificationRepository.findAllByUserIdOrderByCreatedAtDesc(userIdHeader);
     }
 
     @PostMapping

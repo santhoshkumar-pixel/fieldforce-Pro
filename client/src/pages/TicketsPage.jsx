@@ -634,26 +634,13 @@ export default function TicketsPage() {
     const techName = ticket?.technician || user?.name || "A technician";
     const customerName = ticket?.customer || "the requester";
     try {
-      await api.tickets.updateStatus(ticketId, "REVIEW");
-
-      // Build notification message
-      const parts = [`🗺️ ${techName} has reached the site for ticket ${ticketId}.`];
-      if (message) parts.push(`Message: "${message}"`);
-      if (mediaFileName) parts.push(`Attachment: ${mediaFileName}`);
-
-      const created = await api.notifications.create({
-        title: parts.join(" "),
-        timeLabel: "Just now",
-        type: "ticket",
-        unread: true,
-        mediaDataUrl: mediaDataUrl || null,
-        mediaType: mediaType || null,
+      await api.tickets.updateStatus(ticketId, {
+        status: "REVIEW",
+        message,
+        mediaFileName,
+        mediaDataUrl,
+        mediaType
       });
-
-      // Save media to localStorage so NotificationsPage can display it
-      if (created?.id && mediaDataUrl) {
-        localStorage.setItem(`notif_media_${created.id}`, JSON.stringify({ dataUrl: mediaDataUrl, mediaType }));
-      }
 
       showToast(`Ticket ${ticketId} is now under Review — ${customerName} notified`);
       setReachedModal({ open: false, ticketId: null, ticket: null });
@@ -668,27 +655,13 @@ export default function TicketsPage() {
     const techName = ticket?.technician || user?.name || "A technician";
     const customerName = ticket?.customer || "the requester";
     try {
-      await api.tickets.updateStatus(ticketId, "REVIEWED");
-
-      // Build notification message
-      const parts = [`✅ Work review submitted by ${techName} for ticket ${ticketId}.`];
-      if (message) parts.push(`Notes: "${message}"`);
-      if (mediaFileName) parts.push(`Attachment: ${mediaFileName}`);
-      parts.push(`Click Complete to close the ticket.`);
-
-      const created = await api.notifications.create({
-        title: parts.join(" "),
-        timeLabel: "Just now",
-        type: "ticket",
-        unread: true,
-        mediaDataUrl: mediaDataUrl || null,
-        mediaType: mediaType || null,
+      await api.tickets.updateStatus(ticketId, {
+        status: "REVIEWED",
+        message,
+        mediaFileName,
+        mediaDataUrl,
+        mediaType
       });
-
-      // Save media to localStorage so NotificationsPage can display it
-      if (created?.id && mediaDataUrl) {
-        localStorage.setItem(`notif_media_${created.id}`, JSON.stringify({ dataUrl: mediaDataUrl, mediaType }));
-      }
 
       // Mark this ticket as review-submitted locally so Complete button appears
       setReviewedTickets((prev) => new Set([...prev, ticketId]));
@@ -728,16 +701,7 @@ export default function TicketsPage() {
       }
       await api.tickets.reject(id, reason);
 
-      // Send a notification to the ticket creator
       const creatorName = ticket?.createdBy || ticket?.customer || "the requester";
-      const techName = ticket?.technician || user?.name || "A technician";
-      await api.notifications.create({
-        title: `Ticket ${id} rejected by ${techName} — Reason: ${reason}`,
-        timeLabel: "Just now",
-        type: "alert",
-        unread: true,
-      });
-
       showToast(`Ticket rejected — notification sent to ${creatorName}`);
       setRejectModal({ open: false, ticketId: null, ticket: null });
       fetchTickets();
@@ -751,14 +715,6 @@ export default function TicketsPage() {
     const ticket = escalateModal.ticket;
     try {
       await api.tickets.escalate(id, reason, escalationType);
-
-      // Create a notification for regional Warehouse Managers and Super Admin
-      await api.notifications.create({
-        title: `Ticket ${id} escalated to ${escalationType} by ${user?.name || "Technician"} — Reason: ${reason}`,
-        timeLabel: "Just now",
-        type: "alert",
-        unread: true,
-      });
 
       showToast(`Ticket ${id} escalated successfully`);
       setEscalateModal({ open: false, ticketId: null, ticket: null });
