@@ -725,6 +725,7 @@ export const api = {
         body: { email, password },
       }),
     getPermissions: () => request("/api/auth/permissions"),
+    getMe: () => request("/api/auth/me"),
   },
 
   users: {
@@ -738,6 +739,12 @@ export const api = {
   roles: {
     getAll: () => request("/api/roles"),
     update: (id, role) => request(`/api/roles/${id}`, { method: "PUT", body: role }),
+    getPermissions: (id) => request(`/api/roles/${id}/permissions`),
+    updatePermissions: (id, permissions) => request(`/api/roles/${id}/permissions`, { method: "PUT", body: permissions }),
+  },
+
+  permissions: {
+    getAll: () => request("/api/permissions"),
   },
 
   tickets: {

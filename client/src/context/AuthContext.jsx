@@ -63,24 +63,41 @@ export function AuthProvider({ children }) {
  const refreshPermissions = async () => {
  if (!user) return;
  try {
- const data = await api.auth.getPermissions();
- if (data && Array.isArray(data.permissions)) {
- const currentPerms = user.permissions || [];
- const nextPerms = data.permissions;
- const hasChanged = currentPerms.length !== nextPerms.length ||
- !currentPerms.every((p) => nextPerms.includes(p));
- 
- if (hasChanged) {
- setUser((prev) => {
- if (!prev) return null;
- const updated = { ...prev, permissions: nextPerms };
- sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
- return updated;
- });
- }
- }
+   // Try the /me endpoint first — it returns full user with DB permissions
+   const meData = await api.auth.getMe().catch(() => null);
+   if (meData && Array.isArray(meData.permissions)) {
+     const currentPerms = user.permissions || [];
+     const nextPerms = meData.permissions;
+     const hasChanged = currentPerms.length !== nextPerms.length ||
+       !currentPerms.every((p) => nextPerms.includes(p));
+     if (hasChanged) {
+       setUser((prev) => {
+         if (!prev) return null;
+         const updated = { ...prev, permissions: nextPerms };
+         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+         return updated;
+       });
+     }
+     return;
+   }
+   // Fallback: use the role-based permissions endpoint
+   const data = await api.auth.getPermissions();
+   if (data && Array.isArray(data.permissions)) {
+     const currentPerms = user.permissions || [];
+     const nextPerms = data.permissions;
+     const hasChanged = currentPerms.length !== nextPerms.length ||
+       !currentPerms.every((p) => nextPerms.includes(p));
+     if (hasChanged) {
+       setUser((prev) => {
+         if (!prev) return null;
+         const updated = { ...prev, permissions: nextPerms };
+         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+         return updated;
+       });
+     }
+   }
  } catch (error) {
- console.error("Failed to refresh permissions:", error);
+   console.error("Failed to refresh permissions:", error);
  }
  };
 

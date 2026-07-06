@@ -137,25 +137,27 @@ export default function RbacPage() {
  }
  };
 
- const handleSavePermissions = async () => {
- if (!selectedRole || !isSuperAdmin) return;
- setSaving(true);
- setSaveSuccess("");
- try {
- const updatedRole = await api.roles.update(selectedRole.id, {
- ...selectedRole,
- permissions: editedPermissions,
- });
- setRolesList(prev => prev.map(r => r.id === selectedRole.id ? updatedRole : r));
- setSelectedRole(updatedRole);
- setSaveSuccess("Permissions saved successfully!");
- setTimeout(() => setSaveSuccess(""), 4000);
- } catch (err) {
- console.error("Failed to save permissions:", err);
- } finally {
- setSaving(false);
- }
- };
+  const handleSavePermissions = async () => {
+  if (!selectedRole || !isSuperAdmin) return;
+  setSaving(true);
+  setSaveSuccess("");
+  try {
+  // Use dedicated permissions endpoint to replace role permissions atomically
+  await api.roles.updatePermissions(selectedRole.id, editedPermissions);
+  // Reload fresh role data from backend to reflect DB truth
+  const freshRoles = await api.roles.getAll();
+  const updatedRole = freshRoles.find(r => r.id === selectedRole.id) || { ...selectedRole, permissions: editedPermissions };
+  setRolesList(freshRoles || []);
+  setSelectedRole(updatedRole);
+  setSaveSuccess("Permissions saved successfully! Role access will update on next login.");
+  setTimeout(() => setSaveSuccess(""), 5000);
+  } catch (err) {
+  console.error("Failed to save permissions:", err);
+  setSaveSuccess("");
+  } finally {
+  setSaving(false);
+  }
+  };
 
  // Settings form local state seeded from user profile
  const [operationalZone, setOperationalZone] = useState(user?.zone || "Goa");
