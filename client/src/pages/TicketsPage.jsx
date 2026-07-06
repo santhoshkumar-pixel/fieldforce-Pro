@@ -491,14 +491,14 @@ export default function TicketsPage() {
 
   const customerOptions = useMemo(() => {
     return [
-      { value: "all", label: "All CP" },
+      { value: "all", label: "All CUSTOMER (CP)" },
       ...uniqueCustomers.map(c => ({ value: c, label: c }))
     ];
   }, [uniqueCustomers]);
 
   const technicianOptions = useMemo(() => {
     return [
-      { value: "all", label: "All" },
+      { value: "all", label: "All TECHNICIAN" },
       { value: "unassigned", label: "Unassigned" },
       ...uniqueTechnicians.map(t => ({ value: t, label: t }))
     ];
