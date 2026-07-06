@@ -867,7 +867,6 @@ export default function TicketsPage() {
                  </th>
                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <span>CUSTOMER (CP)</span>
                       <CustomSelect
                         value={customerFilter}
                         onChange={(e) => setCustomerFilter(e.target.value)}
@@ -879,7 +878,6 @@ export default function TicketsPage() {
                   </th>
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <span>TECHNICIAN</span>
                       <CustomSelect
                         value={technicianFilter}
                         onChange={(e) => setTechnicianFilter(e.target.value)}
