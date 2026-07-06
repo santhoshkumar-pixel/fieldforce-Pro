@@ -230,10 +230,10 @@ export default function LoginPage() {
 
  <div className="mt-6 space-y-1.5 border-t border-slate-800/80 pt-4 text-center text-xs text-slate-500">
  <p>
- Admin: <span className="text-slate-400 font-mono">{ADMIN_CREDENTIALS.email}</span> / <span className="text-slate-400 font-mono">{ADMIN_CREDENTIALS.password}</span>
+ Super Admin: <span className="text-slate-400 font-mono">superadmin@fieldforce.io</span> / <span className="text-slate-400 font-mono">password123</span>
  </p>
  <p>
- Others: Use email & <span className="text-slate-400 font-mono">password123</span> (e.g., <span className="text-sky-400">meera@fieldforce.io</span>)
+ Admin: <span className="text-slate-400 font-mono">admin@fieldforce.io</span> / <span className="text-slate-400 font-mono">admin123</span>
  </p>
  </div>
  </form>

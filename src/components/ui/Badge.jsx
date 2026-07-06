@@ -44,12 +44,14 @@ export function statusVariant(status) {
 
 export function deviceStatusVariant(status) {
  const map = {
- Online: "success",
- Offline: "muted",
- Warning: "warning",
- Critical: "danger",
- "Maintenance Required": "info",
- };
+  Online: "success",
+  Offline: "muted",
+  Warning: "warning",
+  Damaged: "danger",
+  Lost: "danger",
+  Assigned: "info",
+  Available: "success",
+  };
  return map[status] || "default";
 }
 

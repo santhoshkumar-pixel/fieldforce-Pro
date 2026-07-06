@@ -184,5 +184,80 @@ CREATE TABLE IF NOT EXISTS technician_activity_log (
 );
 CREATE INDEX IF NOT EXISTS idx_tech_activity_user ON technician_activity_log(user_id);
 
+-- 13. Additional Device columns
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS purchase_date VARCHAR(50);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS warranty_expiry_date VARCHAR(50);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS assigned_to_type VARCHAR(50);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS assigned_to_id VARCHAR(50);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS assigned_to_name VARCHAR(100);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS assignment_date VARCHAR(50);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS return_date VARCHAR(50);
 
+-- 14. Device Assignments table
+CREATE TABLE IF NOT EXISTS device_assignments (
+    id BIGSERIAL PRIMARY KEY,
+    device_id VARCHAR(50) REFERENCES devices(id) ON DELETE CASCADE,
+    device_name VARCHAR(100),
+    assignee_type VARCHAR(50),
+    assignee_id VARCHAR(50),
+    assignee_name VARCHAR(100),
+    assigned_by VARCHAR(100),
+    assignment_date VARCHAR(50),
+    return_date VARCHAR(50),
+    status VARCHAR(50)
+);
 
+-- 15. Device Maintenance Logs table
+CREATE TABLE IF NOT EXISTS device_maintenance_logs (
+    id BIGSERIAL PRIMARY KEY,
+    device_id VARCHAR(50) REFERENCES devices(id) ON DELETE CASCADE,
+    device_name VARCHAR(100),
+    reason TEXT,
+    maintenance_date VARCHAR(50),
+    cost DOUBLE PRECISION,
+    remarks TEXT,
+    status VARCHAR(50),
+    completed_at VARCHAR(50)
+);
+
+-- 16. Components table
+CREATE TABLE IF NOT EXISTS components (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    quantity INT NOT NULL DEFAULT 0,
+    min_limit INT NOT NULL DEFAULT 5,
+    warehouse VARCHAR(150) NOT NULL,
+    region VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'In Stock',
+    last_updated VARCHAR(50)
+);
+
+-- 17. Component Usage Logs table
+CREATE TABLE IF NOT EXISTS component_usage_logs (
+    id BIGSERIAL PRIMARY KEY,
+    component_id BIGINT REFERENCES components(id) ON DELETE CASCADE,
+    component_name VARCHAR(150) NOT NULL,
+    quantity INT NOT NULL,
+    device_id VARCHAR(50),
+    ticket_id VARCHAR(50),
+    reason VARCHAR(255),
+    logged_by VARCHAR(100),
+    date_logged VARCHAR(50)
+);
+
+-- 18. Ticket Escalation Columns
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS escalated_reason TEXT;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS escalated_by VARCHAR(100);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS escalation_type VARCHAR(50);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS escalated_to_role VARCHAR(50);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS escalated_to_user_id VARCHAR(100);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assigned_tech_support_id VARCHAR(100);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS escalation_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS completed_by VARCHAR(100);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS completed_by_user_id VARCHAR(100);
+
+-- 19. Device Assignments Ticket ID Column
+ALTER TABLE device_assignments ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(50);
+ALTER TABLE component_usage_logs ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(50);

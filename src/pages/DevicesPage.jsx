@@ -20,8 +20,6 @@ const toneMap = {
  Online: "emerald",
  Offline: "slate",
  Warning: "amber",
- Critical: "rose",
- Maintenance: "sky",
 };
 
 export default function DevicesPage() {
@@ -84,8 +82,6 @@ export default function DevicesPage() {
     { value: "Online", label: "Online" },
     { value: "Offline", label: "Offline" },
     { value: "Warning", label: "Warning" },
-    { value: "Critical", label: "Critical" },
-    { value: "Maintenance Required", label: "Maintenance Required" },
   ], []);
 
   const typeOptions = useMemo(() => [
@@ -166,13 +162,7 @@ export default function DevicesPage() {
 
       setActiveStat(label);
       setDetailModal(updatedDetail);
-      setStatusFilter(
-        label === "Total" || label === "Deployed"
-          ? "all"
-          : label === "Maintenance"
-          ? "Maintenance Required"
-          : label
-      );
+      setStatusFilter(label === "Total" || label === "Deployed" ? "all" : label);
     }
   };
 
@@ -209,7 +199,7 @@ export default function DevicesPage() {
  }
  />
 
- <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
+ <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
  {healthStats.map((d) => (
  <StatCard
  key={d.label}

@@ -77,6 +77,36 @@ public class Ticket implements RegionBound {
     @Column(name = "reject_reason", columnDefinition = "TEXT")
     private String rejectReason;
 
+    @Column(name = "escalated_reason", columnDefinition = "TEXT")
+    private String escalatedReason;
+
+    @Column(name = "escalated_by", length = 100)
+    private String escalatedBy;
+
+    @Column(name = "escalated_at")
+    private Instant escalatedAt;
+
+    @Column(name = "escalation_type", length = 50)
+    private String escalationType;
+
+    @Column(name = "escalated_to_role", length = 50)
+    private String escalatedToRole;
+
+    @Column(name = "escalated_to_user_id", length = 100)
+    private String escalatedToUserId;
+
+    @Column(name = "assigned_tech_support_id", length = 100)
+    private String assignedTechSupportId;
+
+    @Column(name = "escalation_date")
+    private Instant escalationDate;
+
+    @Column(name = "completed_by", length = 100)
+    private String completedBy;
+
+    @Column(name = "completed_by_user_id", length = 100)
+    private String completedByUserId;
+
     @Column(name = "job_type", length = 100)
     private String jobType = "service_repairs";
 
@@ -146,6 +176,36 @@ public class Ticket implements RegionBound {
 
     public String getRejectReason() { return rejectReason; }
     public void setRejectReason(String rejectReason) { this.rejectReason = rejectReason; }
+
+    public String getEscalatedReason() { return escalatedReason; }
+    public void setEscalatedReason(String escalatedReason) { this.escalatedReason = escalatedReason; }
+
+    public String getEscalatedBy() { return escalatedBy; }
+    public void setEscalatedBy(String escalatedBy) { this.escalatedBy = escalatedBy; }
+
+    public Instant getEscalatedAt() { return escalatedAt; }
+    public void setEscalatedAt(Instant escalatedAt) { this.escalatedAt = escalatedAt; }
+
+    public String getEscalationType() { return escalationType; }
+    public void setEscalationType(String escalationType) { this.escalationType = escalationType; }
+
+    public String getEscalatedToRole() { return escalatedToRole; }
+    public void setEscalatedToRole(String escalatedToRole) { this.escalatedToRole = escalatedToRole; }
+
+    public String getEscalatedToUserId() { return escalatedToUserId; }
+    public void setEscalatedToUserId(String escalatedToUserId) { this.escalatedToUserId = escalatedToUserId; }
+
+    public String getAssignedTechSupportId() { return assignedTechSupportId; }
+    public void setAssignedTechSupportId(String assignedTechSupportId) { this.assignedTechSupportId = assignedTechSupportId; }
+
+    public Instant getEscalationDate() { return escalationDate; }
+    public void setEscalationDate(Instant escalationDate) { this.escalationDate = escalationDate; }
+
+    public String getCompletedBy() { return completedBy; }
+    public void setCompletedBy(String completedBy) { this.completedBy = completedBy; }
+
+    public String getCompletedByUserId() { return completedByUserId; }
+    public void setCompletedByUserId(String completedByUserId) { this.completedByUserId = completedByUserId; }
 
     public String getJobType() { return jobType; }
     public void setJobType(String jobType) { this.jobType = jobType; }

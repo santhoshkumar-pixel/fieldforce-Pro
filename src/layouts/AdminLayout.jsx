@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
- BarChart3,
- CalendarClock,
+  Activity,
+  BarChart3,
+  CalendarClock,
  ChevronRight,
  Clock,
  Cpu,
@@ -50,6 +51,7 @@ const iconMap = {
  package: Package,
  bookOpen: BookOpen,
  briefcase: Briefcase,
+ health: Activity,
 };
 
 function NavItem({ item, isDarkMode, onClick, isCollapsed }) {
@@ -92,10 +94,11 @@ const pageTitles = {
  "/attendance": "Attendance",
  "/rbac": "Settings & RBAC",
  "/analytics": "Analytics",
- "/inventory": "Inventory",
+ "/inventory": "Warehouse System",
  "/training": "Training Portal",
  "/training/material": "Training Content",
  "/training/quiz": "Knowledge Quiz",
+ "/health": "System Health",
 };
 
 const navItemPermissions = {
@@ -112,6 +115,7 @@ const navItemPermissions = {
   "/analytics": "analytics.view",
   "/inventory": "inventory.view",
   "/training": "training.view",
+  "/health": null,
 };
 
 /* Roles that may see the Activity Logs page */
@@ -150,7 +154,7 @@ const superAdminSidebarCategories = [
  items: [
  { label: "User Management", path: "/users", icon: "usersRound" },
  { label: "Schemes", path: "/teams", icon: "briefcase" },
- { label: "Inventory", path: "/inventory", icon: "package" },
+ { label: "Warehouse System", path: "/inventory", icon: "package" },
  ],
  },
  {
@@ -158,6 +162,7 @@ const superAdminSidebarCategories = [
  items: [
  { label: "Settings & RBAC", path: "/rbac", icon: "shield" },
  { label: "Analytics", path: "/analytics", icon: "chart" },
+
  ],
  },
  {
@@ -191,7 +196,7 @@ const sidebarCategories = [
  items: [
  { label: "User Management", path: "/users", icon: "usersRound" },
  { label: "Schemes", path: "/teams", icon: "briefcase" },
- { label: "Inventory", path: "/inventory", icon: "package" },
+ { label: "Warehouse System", path: "/inventory", icon: "package" },
  ],
  },
  {
@@ -199,6 +204,7 @@ const sidebarCategories = [
  items: [
  { label: "Settings & RBAC", path: "/rbac", icon: "shield" },
  { label: "Analytics", path: "/analytics", icon: "chart" },
+
  ],
  },
  {
@@ -510,9 +516,9 @@ export default function AdminLayout() {
   <Menu className="h-5 w-5" />
   </button>
   </div>
-  <div className="space-y-2.5">
+  <div className="flex flex-col gap-1">
   {categoriesWithPermissions.map((cat) => (
-  <div key={cat.title} className="space-y-1">
+  <div key={cat.title} className="flex flex-col gap-1">
   <nav className="flex flex-col gap-1">
   {cat.items.map((item) => (
   <NavItem
@@ -559,9 +565,9 @@ export default function AdminLayout() {
  <X className="h-5 w-5" />
  </button>
  </div>
- <div className="space-y-5">
+ <div className="flex flex-col gap-1">
  {categoriesWithPermissions.map((cat) => (
- <div key={cat.title} className="space-y-2">
+ <div key={cat.title} className="flex flex-col gap-1">
  <nav className="flex flex-col gap-1">
  {cat.items.map((item) => (
  <NavItem
@@ -773,3 +779,4 @@ export default function AdminLayout() {
  </div>
  );
 }
+

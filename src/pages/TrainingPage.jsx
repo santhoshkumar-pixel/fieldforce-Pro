@@ -28,6 +28,7 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
 import { getZoneRegion } from "../utils/roleHelpers";
 import QuizCreateModal from "../components/QuizCreateModal";
+import CustomSelect from "../components/ui/CustomSelect";
 import QuizImportModal from "../components/QuizImportModal";
 import AttemptDetailModal from "../components/AttemptDetailModal";
 import {
@@ -418,7 +419,7 @@ export default function TrainingPage() {
       {activeTab === "materials" && (
         <>
           {/* Filters */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-slate-900/40 p-4 border border-slate-800/80 rounded-3xl backdrop-blur-xl">
+          <div className="relative z-20 flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-slate-900/40 p-4 border border-slate-800/80 rounded-3xl backdrop-blur-xl">
             <div className="flex flex-wrap items-center gap-2">
               <div className="bg-slate-950/50 p-1 border border-slate-800 rounded-2xl flex items-center gap-1">
                 {["ALL", "TEXT", "FILE", "VIDEO"].map((t) => (
@@ -438,18 +439,20 @@ export default function TrainingPage() {
               {isAdmin && (
                 <div className="flex items-center gap-1.5 bg-slate-950/50 px-3 py-1 border border-slate-800 rounded-2xl">
                   <Filter className="h-3.5 w-3.5 text-slate-500" />
-                  <select
+                  <CustomSelect
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="bg-transparent border-none text-xs text-slate-300 font-semibold focus:outline-none cursor-pointer py-1"
-                  >
-                    <option value="ALL_RELEVANT">Show All Roles</option>
-                    <option value="ALL">ALL Roles (General)</option>
-                    <option value="Operational Manager">Operational Manager</option>
-                    <option value="Field Technician">Field Technician</option>
-                    <option value="Warehouse Manager">Warehouse Manager</option>
-                    <option value="Technician">Technician</option>
-                  </select>
+                    options={[
+                      { value: "ALL_RELEVANT", label: "Show All Roles" },
+                      { value: "ALL", label: "ALL Roles (General)" },
+                      { value: "Operational Manager", label: "Operational Manager" },
+                      { value: "Field Technician", label: "Field Technician" },
+                      { value: "Warehouse Manager", label: "Warehouse Manager" },
+                      { value: "Technician", label: "Technician" }
+                    ]}
+                    className="border-none bg-transparent py-1 px-1.5 text-xs font-semibold text-slate-350 focus:ring-0"
+                    dropdownClassName="mt-2.5"
+                  />
                 </div>
               )}
             </div>
@@ -993,35 +996,39 @@ export default function TrainingPage() {
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Course Format
                     </label>
-                    <select
+                    <CustomSelect
                       value={formType}
                       onChange={(e) => {
                         setFormType(e.target.value);
                         setFormFileName("");
                         setFormFilePath("");
                       }}
-                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500 text-sm cursor-pointer"
-                    >
-                      <option value="TEXT">TEXT (Article / SOP Instructions)</option>
-                      <option value="FILE">FILE (PDF Manual / Handout)</option>
-                      <option value="VIDEO">VIDEO (Tutorial / Screen Share)</option>
-                    </select>
+                      options={[
+                        { value: "TEXT", label: "TEXT (Article / SOP Instructions)" },
+                        { value: "FILE", label: "FILE (PDF Manual / Handout)" },
+                        { value: "VIDEO", label: "VIDEO (Tutorial / Screen Share)" }
+                      ]}
+                      fullWidth
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-slate-200 text-sm"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Target Audience (Role)
                     </label>
-                    <select
+                    <CustomSelect
                       value={formTargetRole}
                       onChange={(e) => setFormTargetRole(e.target.value)}
-                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500 text-sm cursor-pointer"
-                    >
-                      <option value="ALL">ALL Roles (General)</option>
-                      <option value="Operational Manager">Operational Manager</option>
-                      <option value="Field Technician">Field Technician</option>
-                      <option value="Warehouse Manager">Warehouse Manager</option>
-                      <option value="Technician">Technician</option>
-                    </select>
+                      options={[
+                        { value: "ALL", label: "ALL Roles (General)" },
+                        { value: "Operational Manager", label: "Operational Manager" },
+                        { value: "Field Technician", label: "Field Technician" },
+                        { value: "Warehouse Manager", label: "Warehouse Manager" },
+                        { value: "Technician", label: "Technician" }
+                      ]}
+                      fullWidth
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-slate-200 text-sm"
+                    />
                   </div>
                 </div>
 

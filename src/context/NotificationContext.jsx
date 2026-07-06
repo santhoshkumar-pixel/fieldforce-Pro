@@ -76,11 +76,11 @@ export function NotificationProvider({ children }) {
  }
 
  // 4. Default view for Admins / Operational Manager / Scheme PC (show everything or fall back)
-  if (user.role === "Admin" || user.role === "Super Admin") {
+  if (user.role === "Super Admin") {
     return true;
   }
 
-  if (user.role === "Scheme PC" || user.role === "Operational Manager") {
+  if (user.role === "Operational Manager" || user.role === "Warehouse Manager") {
     const getNotificationPlace = (n) => {
       if (!n || !n.title) return "Goa";
       const titleLower = n.title.toLowerCase();

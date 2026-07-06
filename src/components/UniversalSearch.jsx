@@ -17,9 +17,9 @@ import Badge from "./ui/Badge";
 // ─────────────────────────────────────────────────────────────────────────────
 // RBAC Role Definitions
 // ─────────────────────────────────────────────────────────────────────────────
-const ADMIN_ROLES = ["Admin", "Operational Manager", "Scheme PC"];
-const MANAGER_ROLES = ["Admin", "Operational Manager", "Scheme PC", "Warehouse Manager", "Warehouse"];
-const OPERATIONAL_MANAGER_ROLES = ["Admin", "Operational Manager", "Scheme PC"];
+const ADMIN_ROLES = ["Super Admin", "Operational Manager"];
+const MANAGER_ROLES = ["Super Admin", "Operational Manager", "Warehouse Manager"];
+const OPERATIONAL_MANAGER_ROLES = ["Super Admin", "Operational Manager"];
 const TECHNICIAN_ROLES = ["Field Technician", "Technician"];
 
 function isAdmin(user) { return ADMIN_ROLES.includes(user?.role); }
@@ -212,8 +212,8 @@ function parseSearch(rawQuery, scopedData, user) {
  let status = true;
  if (has("offline")||has("down")||has("disconnected")) status = d.status==="Offline";
  else if (has("online")||has("connected")) status = d.status==="Online";
- else if (has("critical")||has("danger")) status = d.status==="Critical";
- else if (has("warning")) status = ["Warning","Critical"].includes(d.status);
+ else if (has("critical")||has("danger")) status = d.status==="Damaged";
+ else if (has("warning")) status = d.status==="Warning";
 
  let battery = true;
  if (has("battery") && (has("low")||has("dead")||has("empty"))) battery = (d.battery||100) <= 25;
@@ -1504,8 +1504,8 @@ export default function UniversalSearch() {
   style={{
   position:"fixed",
   top: dropPos.bottom + 8,
-  left: dropPos.left,
-  width: dropPos.width,
+  left: windowWidth < 1024 ? (windowWidth - (windowWidth < 640 ? windowWidth - 32 : Math.min(Math.max(dropPos.width, 440), windowWidth - 32))) / 2 : Math.min(dropPos.left, Math.max(16, windowWidth - Math.min(Math.max(dropPos.width, 440), windowWidth - 32) - 16)),
+  width: windowWidth < 640 ? "calc(100vw - 32px)" : Math.min(Math.max(dropPos.width, 440), windowWidth - 32),
   maxWidth: "calc(100vw - 32px)",
   maxHeight: "78vh",
   zIndex: 9999,
@@ -1783,7 +1783,7 @@ export default function UniversalSearch() {
  className="flex flex-col rounded-xl border border-slate-800/60 bg-slate-900/30 p-3 text-left hover:bg-slate-800/50 hover:border-teal-500/50 gap-1.5 cursor-pointer">
  <div className="flex items-center justify-between gap-2 w-full">
  <span className="font-mono text-xs font-bold text-teal-600 dark:text-teal-400">{d.id}</span>
- <Badge variant={d.status === "Online" ? "success" : d.status === "Critical" ? "danger" : "warning"}>{d.status}</Badge>
+ <Badge variant={d.status === "Online" ? "success" : d.status === "Damaged" ? "danger" : "warning"}>{d.status}</Badge>
  </div>
  <span className="text-xs font-semibold text-slate-200 dark:text-white truncate w-full">{d.name}</span>
  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate w-full">{d.site||d.siteName}</p>
@@ -1983,3 +1983,4 @@ export default function UniversalSearch() {
  </>
  );
 }
+

@@ -17,6 +17,7 @@ import PageHeader from "../components/PageHeader";
 import Badge from "../components/ui/Badge";
 import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import { shiftStatuses } from "../data/attendanceData";
+import CustomSelect from "../components/ui/CustomSelect";
 import {
  computeBreakDuration,
  computeShiftDuration,
@@ -70,11 +71,9 @@ export default function AttendancePage() {
  const { user } = useAuth();
  const isSuperAdmin = user?.role === "Super Admin";
  const canViewAllAttendance =
- user?.role === "Super Admin" ||
- user?.role === "Operational Manager" ||
- user?.role === "Scheme PC" ||
- user?.role === "Scheme Admin" ||
- user?.role === "Admin";
+  user?.role === "Super Admin" ||
+  user?.role === "Operational Manager" ||
+  user?.role === "Warehouse Manager";
 
  const {
  shifts,
@@ -104,15 +103,19 @@ export default function AttendancePage() {
   }, [shifts, userPlace]);
 
   const uniqueSchemes = useMemo(() => {
-    const teamsList = filteredShifts.map(s => s.team).filter(Boolean);
-    return Array.from(new Set(teamsList)).sort();
+    const schemesSet = new Set();
+    filteredShifts.forEach((s) => {
+      if (!s || !s.zone) return;
+      const sPlace = s.zone.toLowerCase().includes("goa") || ["north goa", "south goa", "central goa", "goa"].includes(s.zone.toLowerCase()) ? "Goa" : "Bhutan";
+      schemesSet.add(sPlace);
+    });
+    return Array.from(schemesSet).sort();
   }, [filteredShifts]);
-
-
 
   const finalFilteredShifts = useMemo(() => {
     return filteredShifts.filter((s) => {
-      const matchesScheme = selectedScheme === "all" || s.team === selectedScheme;
+      const sPlace = s.zone && (s.zone.toLowerCase().includes("goa") || ["north goa", "south goa", "central goa", "goa"].includes(s.zone.toLowerCase())) ? "Goa" : "Bhutan";
+      const matchesScheme = selectedScheme === "all" || sPlace === selectedScheme;
       const q = searchTerm.toLowerCase().trim();
       const matchesSearch = !q || 
         s.name.toLowerCase().includes(q) ||
@@ -239,18 +242,16 @@ export default function AttendancePage() {
         className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-xs text-slate-100 outline-none focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20"
       />
     </div>
-    <select
+    <CustomSelect
       value={selectedScheme}
       onChange={(e) => setSelectedScheme(e.target.value)}
-      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 outline-none focus:border-sky-500/50 cursor-pointer"
-    >
-      <option value="all">All Schemes</option>
-      {uniqueSchemes.map((scheme) => (
-        <option key={scheme} value={scheme}>
-          {scheme}
-        </option>
-      ))}
-    </select>
+      options={[
+        { value: "all", label: "All Schemes" },
+        ...uniqueSchemes.map((scheme) => ({ value: scheme, label: scheme }))
+      ]}
+      fullWidth
+      className="px-3 py-2 text-xs text-slate-100 border-slate-800 bg-slate-950"
+    />
   </div>
 
   <div className="divide-y divide-slate-900 overflow-y-auto flex-1 max-h-[450px]">

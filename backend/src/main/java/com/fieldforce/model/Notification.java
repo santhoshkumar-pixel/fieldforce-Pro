@@ -25,6 +25,12 @@ public class Notification {
     @Column(name = "created_at")
     private Instant createdAt = Instant.now();
 
+    @Column(name = "media_data_url", columnDefinition = "TEXT")
+    private String mediaDataUrl;
+
+    @Column(name = "media_type", length = 50)
+    private String mediaType;
+
     // Constructors
     public Notification() {}
 
@@ -55,4 +61,10 @@ public class Notification {
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public String getMediaDataUrl() { return mediaDataUrl; }
+    public void setMediaDataUrl(String mediaDataUrl) { this.mediaDataUrl = mediaDataUrl; }
+
+    public String getMediaType() { return mediaType; }
+    public void setMediaType(String mediaType) { this.mediaType = mediaType; }
 }

@@ -15,23 +15,27 @@ export function AuthProvider({ children }) {
  }
  });
 
- const login = async (email, password) => {
- try {
- const loggedInUser = await api.auth.login(email, password);
- setUser(loggedInUser);
- sessionStorage.setItem(STORAGE_KEY, JSON.stringify(loggedInUser));
- return { success: true };
- } catch (error) {
-  // Fallback to mock user if API fails
-  const mockUser = mockUsers[email];
-  if (mockUser && (password === "password123" || password === "admin123")) {
-  setUser(mockUser);
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser));
-  return { success: true };
-  }
- return { success: false, error: error.message || "Invalid email or password" };
- }
- };
+  const login = async (email, password) => {
+    const normalizedEmail = email ? email.trim().toLowerCase() : "";
+    try {
+      const loggedInUser = await api.auth.login(email, password);
+      setUser(loggedInUser);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(loggedInUser));
+      return { success: true };
+    } catch (error) {
+      // Fallback to mock user if API fails / backend not running
+      const mockKey = Object.keys(mockUsers).find(
+        (k) => k.toLowerCase() === normalizedEmail
+      );
+      const mockUser = mockKey ? mockUsers[mockKey] : null;
+      if (mockUser) {
+        setUser(mockUser);
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser));
+        return { success: true };
+      }
+      return { success: false, error: "Invalid email or password" };
+    }
+  };
 
  const logout = () => {
  setUser(null);

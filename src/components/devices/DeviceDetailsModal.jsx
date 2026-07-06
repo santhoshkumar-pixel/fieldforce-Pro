@@ -162,7 +162,7 @@ export default function DeviceDetailsModal({ open, device, onClose }) {
  </div>
  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-2.5">
  <p className="text-slate-500 uppercase tracking-wider text-[9px] font-bold">Packet Loss</p>
- <p className="text-white font-semibold mt-0.5">{device.status === "Offline" ? "100%" : device.status === "Critical" ? "5.42%" : "0.01%"}</p>
+ <p className="text-white font-semibold mt-0.5">{device.status === "Offline" ? "100%" : device.status === "Damaged" ? "5.42%" : "0.01%"}</p>
  </div>
  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-2.5">
  <p className="text-slate-500 uppercase tracking-wider text-[9px] font-bold">Health Status</p>
@@ -171,7 +171,7 @@ export default function DeviceDetailsModal({ open, device, onClose }) {
  </div>
  </div>
 
- {device.status === "Critical" && (
+ {device.status === "Damaged" && (
  <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-3.5 py-3 flex items-start gap-2.5">
  <ShieldAlert className="h-4.5 w-4.5 text-rose-400 shrink-0 mt-0.5" />
  <div>

@@ -4,14 +4,19 @@ import {
   CheckCircle,
   Clock,
   Filter,
+  Headphones,
   MapPin,
+  Phone,
   Plus,
   Search,
   Send,
   X,
+  Play,
+  AlertTriangle,
 } from "lucide-react";
 import AddTicketModal from "../components/tickets/AddTicketModal";
 import RejectTicketModal from "../components/tickets/RejectTicketModal";
+import EscalateTicketModal from "../components/tickets/EscalateTicketModal";
 import TicketDetailsModal from "../components/tickets/TicketDetailsModal";
 import ReachedModal from "../components/tickets/ReachedModal";
 import ReviewModal from "../components/tickets/ReviewModal";
@@ -23,10 +28,175 @@ import {
 } from "../data/dispatchTickets";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
-import { getUserPlace } from "../utils/roleHelpers";
+import { getUserPlace, getZoneRegion } from "../utils/roleHelpers";
 import { useDevice } from "../context/DeviceContext";
 
 const ACTIVE_STATUSES = ["ASSIGNED", "ACCEPTED", "TRAVELLING", "REVIEW", "REVIEWED"];
+
+const isTechSupportTicket = (ticket) =>
+  ticket?.escalationType === "TECH_SUPPORT" || ticket?.escalatedToRole === "TECH_SUPPORT";
+
+const isTechSupportVisibleStatus = (status) =>
+  ["ESCALATED", "TECH_SUPPORT_IN_PROGRESS", "TECH_SUPPORT_COMPLETED", "COMPLETED"].includes(status);
+
+const isTechSupportTicketVisibleForUser = (ticket, user) => {
+  if (!isTechSupportTicket(ticket) || !isTechSupportVisibleStatus(ticket.status)) return false;
+  const ownerId = String(ticket.assignedTechSupportId || "").trim();
+  const isAvailable = ticket.status === "ESCALATED" && !ownerId;
+  const isOwnedByUser = ownerId && (
+    ownerId === String(user?.id || "") ||
+    ownerId.toLowerCase() === String(user?.name || "").toLowerCase()
+  );
+  const isCompletedByUser = ticket.completedBy &&
+    String(ticket.completedBy).toLowerCase() === String(user?.name || "").toLowerCase();
+  return isAvailable || isOwnedByUser || isCompletedByUser;
+};
+
+const isCompletedTicket = (ticket) =>
+  ticket?.status === "COMPLETED" ||
+  ticket?.status === "TECH_SUPPORT_COMPLETED" ||
+  Boolean(ticket?.completedAt);
+
+const parseReassignedDevicesAndComponents = (ticket) => {
+  if (!ticket) return { devices: [], components: [] };
+  const deviceIdStr = String(ticket.deviceId || "").trim();
+  const deviceNameStr = String(ticket.deviceName || "").trim();
+  if (!deviceIdStr) return { devices: [], components: [] };
+  
+  const ids = deviceIdStr.split(",").map(id => id.trim()).filter(Boolean);
+  const names = deviceNameStr.split(",").map(n => n.trim()).filter(Boolean);
+  
+  const parsedDevices = [];
+  const parsedComponents = [];
+  
+  ids.forEach((id, idx) => {
+    const name = names[idx] || names[0] || "Unknown";
+    const nameStr = String(name);
+    if (id.startsWith("COMP-")) {
+      const qtyMatch = id.match(/\((\d+)\)/);
+      const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+      const cleanId = id.replace(/\s*\(\d+\)/, "");
+      parsedComponents.push({
+        id: cleanId,
+        name: nameStr.replace(/\s*\(x\d+\)/, ""),
+        qty
+      });
+    } else {
+      parsedDevices.push({
+        id,
+        name: nameStr
+      });
+    }
+  });
+  
+  return { devices: parsedDevices, components: parsedComponents };
+};
+
+const syncInventoryForTicket = async (ticket, newStatus, newDeviceIdStr, newDeviceNameStr) => {
+  if (!api.isMockMode) {
+    // Rely on backend database sync when backend is online to prevent duplicate assignments/usage logs
+    return;
+  }
+  try {
+    const oldDeviceIds = ticket?.deviceId
+      ? String(ticket.deviceId).split(",").map(id => id.trim()).filter(Boolean)
+      : [];
+    const newDeviceIds = newDeviceIdStr
+      ? String(newDeviceIdStr).split(",").map(id => id.trim()).filter(Boolean)
+      : [];
+
+    const technician = ticket?.technician || null;
+
+    // 1. If status becomes COMPLETED:
+    if (newStatus === "COMPLETED") {
+      // All devices on this ticket become "Online"
+      for (const id of oldDeviceIds) {
+        if (!id.startsWith("COMP-")) {
+          try {
+            const dev = await api.devices.getById(id);
+            if (dev) {
+              await api.devices.update(id, { ...dev, status: "Online" });
+            }
+          } catch (e) {
+            console.error("Failed to set device status to Online:", id, e);
+          }
+        }
+      }
+    }
+    // 2. If status becomes REJECTED:
+    else if (newStatus === "REJECTED") {
+      // Return all devices to "Available"
+      for (const id of oldDeviceIds) {
+        if (!id.startsWith("COMP-")) {
+          try {
+            await api.devices.return(id, { returnDate: new Date().toISOString().split("T")[0] });
+          } catch (e) {
+            console.error("Failed to return device:", id, e);
+          }
+        }
+      }
+    }
+    // 3. If ticket is updated / reassigned / changed:
+    else {
+      // Find devices that were removed (present in old but not in new)
+      const removedDeviceIds = oldDeviceIds.filter(id => !newDeviceIds.includes(id));
+      for (const id of removedDeviceIds) {
+        if (!id.startsWith("COMP-")) {
+          try {
+            await api.devices.return(id, { returnDate: new Date().toISOString().split("T")[0] });
+          } catch (e) {
+            console.error("Failed to return removed device:", id, e);
+          }
+        }
+      }
+
+      // If technician is assigned:
+      if (technician) {
+        const oldTech = ticket?.technician || null;
+        const techChanged = oldTech !== technician;
+
+        for (const id of newDeviceIds) {
+          if (!id.startsWith("COMP-")) {
+            // Assign if it's new OR if technician changed
+            if (!oldDeviceIds.includes(id) || techChanged) {
+              try {
+                await api.devices.assign(id, {
+                  assigneeType: "Technician",
+                  assigneeId: technician,
+                  assigneeName: technician,
+                  assignedBy: "System",
+                  assignmentDate: new Date().toISOString().split("T")[0],
+                  returnDate: "",
+                  ticketId: ticket ? ticket.id : "NEW"
+                });
+              } catch (e) {
+                console.error("Failed to assign device:", id, e);
+              }
+            }
+          } else {
+            // Component: only use/reduce quantity if it was not already in the old list
+            if (!oldDeviceIds.includes(id)) {
+              try {
+                const qtyMatch = id.match(/\((\d+)\)/);
+                const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+                const cleanId = id.replace(/\s*\(\d+\)/, "");
+                await api.components.use(cleanId, {
+                  quantity: qty,
+                  deviceId: ticket ? ticket.id : "NEW",
+                  reason: `Assigned to ticket`,
+                });
+              } catch (e) {
+                console.error("Failed to use component:", id, e);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to sync inventory for ticket:", err);
+  }
+};
 
 const formatTicketDateTime = (sentAtStr) => {
   if (!sentAtStr) return "—";
@@ -49,7 +219,7 @@ function PriorityBadge({ priority }) {
   const styles = {
     HIGH: "bg-orange-500/90 text-white",
     CRITICAL: "bg-red-600 text-white",
-    MEDIUM: "bg-amber-500/90 text-zinc-950",
+    MEDIUM: "bg-amber-500/90 text-white",
     LOW: "bg-emerald-600 text-white",
   };
   return (
@@ -61,7 +231,7 @@ function PriorityBadge({ priority }) {
   );
 }
 
-function StatusCell({ status }) {
+function StatusCell({ ticket, user }) {
   const config = {
     ACCEPTED: { dot: "bg-blue-400", text: "text-blue-400" },
     TRAVELLING: { dot: "bg-violet-400", text: "text-violet-400" },
@@ -72,9 +242,34 @@ function StatusCell({ status }) {
     ESCALATED: { dot: "bg-red-500", text: "text-red-400" },
     REVIEW: { dot: "bg-amber-400", text: "text-amber-400" },
     REVIEWED: { dot: "bg-amber-500", text: "text-amber-500" },
+    PENDING: { dot: "bg-amber-500", text: "text-amber-400" },
+    TECH_SUPPORT_IN_PROGRESS: { dot: "bg-sky-400", text: "text-sky-400" },
+    TECH_SUPPORT_COMPLETED: { dot: "bg-emerald-400", text: "text-emerald-400" },
   };
-  const c = config[status] || config.ASSIGNED;
-  const isRejected = status === "REJECTED";
+
+  let displayStatus = ticket.status;
+  if (ticket.status === "ESCALATED" && isTechSupportTicket(ticket)) {
+    displayStatus = "PENDING";
+  }
+  if (ticket.status === "ESCALATED" && ticket.escalationType === "WAREHOUSE") {
+    const isCreator = ticket.createdBy === user?.name;
+    const isSuperAdmin = user?.role === "Super Admin";
+    const isParticularWarehouseManager =
+      user?.role === "Warehouse Manager" &&
+      getZoneRegion(user?.zone) === getZoneRegion(ticket.site);
+    const isAssignedOrEscalatedBy = ticket.technician === user?.name || ticket.escalatedBy === user?.name;
+      
+    if (isSuperAdmin || isCreator || isParticularWarehouseManager || isAssignedOrEscalatedBy) {
+      displayStatus = "PENDING";
+    }
+  }
+
+  const c = config[displayStatus] || config.ASSIGNED;
+  const isRejected = displayStatus === "REJECTED";
+  const labelMap = {
+    TECH_SUPPORT_IN_PROGRESS: "TECH SUPPORT IN PROGRESS",
+    TECH_SUPPORT_COMPLETED: "TECH SUPPORT COMPLETED",
+  };
   return (
     <span className={`inline-flex items-center gap-2 text-xs font-semibold uppercase ${c.text}`}>
       {isRejected ? (
@@ -82,7 +277,7 @@ function StatusCell({ status }) {
       ) : (
         <span className={`h-2 w-2 rounded-full ${c.dot} animate-pulse`} />
       )}
-      {status}
+      {labelMap[displayStatus] || displayStatus}
     </span>
   );
 }
@@ -110,8 +305,8 @@ export default function TicketsPage() {
   const { refreshDevices } = useDevice();
   const userPlace = useMemo(() => getUserPlace(user), [user]);
 
-  const isTechOrSupport = user?.role === "Technical Support" || user?.role === "Field Technician" || user?.role === "Technician";
-  const isAdminOrSchemeAdmin = user?.role === "Super Admin" || user?.role === "Scheme Admin" || user?.role === "Admin" || user?.role === "Scheme PC" || user?.role === "Operational Manager";
+  const isTechOrSupport = user?.role === "Technical Support" || user?.role === "Tech Support" || user?.role === "Field Technician" || user?.role === "Technician";
+  const isAdminOrSchemeAdmin = user?.role === "Super Admin" || user?.role === "Operational Manager" || user?.role === "Warehouse Manager";
 
   const getTicketPlace = (t) => {
     if (!t) return "Goa";
@@ -139,12 +334,15 @@ export default function TicketsPage() {
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
   const [ticketModalMode, setTicketModalMode] = useState("add");
   const [rejectModal, setRejectModal] = useState({ open: false, ticketId: null, ticket: null });
+  const [escalateModal, setEscalateModal] = useState({ open: false, ticketId: null, ticket: null });
   const [reachedModal, setReachedModal] = useState({ open: false, ticketId: null, ticket: null });
   const [reviewModal, setReviewModal] = useState({ open: false, ticketId: null, ticket: null });
   const [reviewedTickets, setReviewedTickets] = useState(new Set());
   const [editingTicket, setEditingTicket] = useState(null);
   const [toast, setToast] = useState(null);
   const [detailsModalTicket, setDetailsModalTicket] = useState(null);
+  const [warehouseCompleteModal, setWarehouseCompleteModal] = useState({ open: false, ticket: null });
+  const [techSupportModal, setTechSupportModal] = useState({ open: false, ticket: null });
 
   const showToast = (message) => {
     setToast(message);
@@ -172,7 +370,11 @@ export default function TicketsPage() {
 
   useEffect(() => {
     fetchTickets();
-    fetchUsers();
+    // Only fetch users if the current user has permission to view them
+    const techRoles = ["Field Technician", "Technician", "Technical Support", "Tech Support"];
+    if (!techRoles.includes(user?.role)) {
+      fetchUsers();
+    }
   }, []);
 
   const technicians = useMemo(() => {
@@ -193,10 +395,35 @@ export default function TicketsPage() {
   const placeTickets = useMemo(() => {
     let filtered = ticketList;
     if (user?.role === "Field Technician" || user?.role === "Technician") {
-      filtered = ticketList.filter((t) => t.technician === user?.name);
+      filtered = ticketList.filter((t) => {
+        if (t.status === "ESCALATED" && t.escalationType === "WAREHOUSE") {
+          return t.technician === user?.name || t.escalatedBy === user?.name;
+        }
+        return t.technician === user?.name;
+      });
+    } else if (user?.role === "Tech Support") {
+      filtered = ticketList.filter((t) => {
+        const isTechSupportEscalated = isTechSupportTicket(t) && isTechSupportVisibleStatus(t.status);
+        return isTechSupportEscalated || t.technician === user?.name;
+      });
     } else if (userPlace) {
       filtered = ticketList.filter((t) => getTicketPlace(t) === userPlace);
     }
+
+    // Filter warehouse-escalated tickets: visible only to Super Admin, Creator, Region Warehouse Manager, and Assigned/Escalated technician
+    filtered = filtered.filter((t) => {
+      if (t.status === "ESCALATED" && t.escalationType === "WAREHOUSE") {
+        const isCreator = t.createdBy === user?.name;
+        const isSuperAdmin = user?.role === "Super Admin";
+        const isParticularWarehouseManager =
+          user?.role === "Warehouse Manager" &&
+          getZoneRegion(user?.zone) === getZoneRegion(t.site);
+        const isAssignedOrEscalatedBy = t.technician === user?.name || t.escalatedBy === user?.name;
+        return isSuperAdmin || isCreator || isParticularWarehouseManager || isAssignedOrEscalatedBy;
+      }
+      return true;
+    });
+
     return filtered;
   }, [ticketList, userPlace, user]);
 
@@ -279,6 +506,10 @@ export default function TicketsPage() {
 
   const handleUpdateStatus = async (id, newStatus) => {
     try {
+      const ticket = ticketList.find(t => t.id === id);
+      if (ticket) {
+        await syncInventoryForTicket(ticket, newStatus, ticket.deviceId, ticket.deviceName);
+      }
       await api.tickets.updateStatus(id, newStatus);
       showToast(`Status updated to ${newStatus}`);
       fetchTickets();
@@ -287,15 +518,36 @@ export default function TicketsPage() {
     }
   };
 
-  const handleAddTicket = async ({ customer, site, technician, priority, issue, jobType, deviceId, deviceName, sentAt }) => {
+  const handleAddTicket = async ({ customer, site, technician, priority, issue, jobType, deviceId, deviceName, sentAt, reassignItemType, reassignItemId, selectedDevices = [], selectedComponents = [] }) => {
     const assigned = Boolean(technician);
     const resolvedSentAt = sentAt || (assigned ? new Date().toISOString() : null);
+    const normalizedSelectedDevices = Array.isArray(selectedDevices) ? selectedDevices : [];
+    const normalizedSelectedComponents = Array.isArray(selectedComponents) ? selectedComponents : [];
+    const resolvedDeviceId = deviceId || [
+      ...normalizedSelectedDevices.map((item) => item.id),
+      ...normalizedSelectedComponents.map((item) => `COMP-${item.id} (${item.qty || 1})`),
+    ].join(", ") || null;
+    const resolvedDeviceName = deviceName || [
+      ...normalizedSelectedDevices.map((item) => item.name || item.id),
+      ...normalizedSelectedComponents.map((item) => `${item.name} (x${item.qty || 1})`),
+    ].join(", ");
 
     if (
       editingTicket &&
       (ticketModalMode === "resend" || ticketModalMode === "send")
     ) {
       try {
+        const isWarehouseEscalatedReassign = editingTicket.status === "ESCALATED" && editingTicket.escalationType === "WAREHOUSE";
+        const newStatus = isWarehouseEscalatedReassign ? "PENDING" : "ASSIGNED";
+
+        // Sync inventory automatically (handles device assignments, returns, component usages, etc.)
+        await syncInventoryForTicket(
+          editingTicket,
+          newStatus,
+          resolvedDeviceId,
+          resolvedDeviceName
+        );
+
         await api.tickets.update(editingTicket.id, {
           ...editingTicket,
           customer,
@@ -303,15 +555,17 @@ export default function TicketsPage() {
           technician,
           priority,
           issue,
-          status: "ASSIGNED",
+          status: newStatus,
           sentAt: resolvedSentAt,
           respondedAt: null,
           rejectReason: null,
           slaTime: "03:00",
           slaOverdue: false,
           jobType: jobType || editingTicket.jobType || "service_repairs",
-          deviceId: deviceId || editingTicket.deviceId || null,
-          deviceName: deviceName || editingTicket.deviceName || "",
+          deviceId: resolvedDeviceId,
+          deviceName: resolvedDeviceName,
+          selectedDevices: normalizedSelectedDevices,
+          selectedComponents: normalizedSelectedComponents,
         });
         showToast(
           ticketModalMode === "resend"
@@ -340,18 +594,28 @@ export default function TicketsPage() {
         respondedAt: null,
         rejectReason: null,
         jobType: jobType || "service_repairs",
-        deviceId: deviceId || null,
-        deviceName: deviceName || "",
+        deviceId: resolvedDeviceId,
+        deviceName: resolvedDeviceName,
+        selectedDevices: normalizedSelectedDevices,
+        selectedComponents: normalizedSelectedComponents,
       };
       const created = await api.tickets.create(newTicket);
+      
+      // Sync inventory for the newly created ticket
+      await syncInventoryForTicket(created, newTicket.status, newTicket.deviceId, newTicket.deviceName);
+      setTicketList((prev) => [
+        created,
+        ...prev.filter((ticket) => ticket.id !== created.id),
+      ]);
+
       showToast(
         assigned
           ? `Ticket ${created.id} added and assigned to ${technician}`
           : `Ticket ${created.id} added — unassigned`
       );
-      fetchTickets();
+      await fetchTickets();
     } catch (err) {
-      showToast("Error creating ticket");
+      showToast(err.message || "Error creating ticket");
     }
   };
 
@@ -382,6 +646,8 @@ export default function TicketsPage() {
         timeLabel: "Just now",
         type: "ticket",
         unread: true,
+        mediaDataUrl: mediaDataUrl || null,
+        mediaType: mediaType || null,
       });
 
       // Save media to localStorage so NotificationsPage can display it
@@ -415,6 +681,8 @@ export default function TicketsPage() {
         timeLabel: "Just now",
         type: "ticket",
         unread: true,
+        mediaDataUrl: mediaDataUrl || null,
+        mediaType: mediaType || null,
       });
 
       // Save media to localStorage so NotificationsPage can display it
@@ -434,6 +702,10 @@ export default function TicketsPage() {
 
   const handleComplete = async (id) => {
     try {
+      const ticket = ticketList.find(t => t.id === id);
+      if (ticket) {
+        await syncInventoryForTicket(ticket, "COMPLETED", ticket.deviceId, ticket.deviceName);
+      }
       await api.tickets.updateStatus(id, "COMPLETED");
       setReviewedTickets((prev) => {
         const next = new Set(prev);
@@ -451,6 +723,9 @@ export default function TicketsPage() {
     const id = rejectModal.ticketId;
     const ticket = rejectModal.ticket;
     try {
+      if (ticket) {
+        await syncInventoryForTicket(ticket, "REJECTED", ticket.deviceId, ticket.deviceName);
+      }
       await api.tickets.reject(id, reason);
 
       // Send a notification to the ticket creator
@@ -468,6 +743,28 @@ export default function TicketsPage() {
       fetchTickets();
     } catch (err) {
       showToast("Error rejecting ticket");
+    }
+  };
+
+  const handleEscalateConfirm = async (reason, escalationType) => {
+    const id = escalateModal.ticketId;
+    const ticket = escalateModal.ticket;
+    try {
+      await api.tickets.escalate(id, reason, escalationType);
+
+      // Create a notification for regional Warehouse Managers and Super Admin
+      await api.notifications.create({
+        title: `Ticket ${id} escalated to ${escalationType} by ${user?.name || "Technician"} — Reason: ${reason}`,
+        timeLabel: "Just now",
+        type: "alert",
+        unread: true,
+      });
+
+      showToast(`Ticket ${id} escalated successfully`);
+      setEscalateModal({ open: false, ticketId: null, ticket: null });
+      fetchTickets();
+    } catch (err) {
+      showToast("Error escalating ticket");
     }
   };
 
@@ -687,7 +984,7 @@ export default function TicketsPage() {
                       <PriorityBadge priority={t.priority} />
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      <StatusCell status={t.status} />
+                      <StatusCell ticket={t} user={user} />
                     </td>
                     <td
                       className={`px-5 py-4 font-mono text-sm font-semibold tabular-nums whitespace-nowrap ${
@@ -764,6 +1061,21 @@ export default function TicketsPage() {
                                 Resend
                               </button>
                             )}
+                            {t.status === "ESCALATED" && t.escalationType === "WAREHOUSE" && (
+                              user?.role === "Super Admin" ||
+                              t.createdBy === user?.name ||
+                              (user?.role === "Warehouse Manager" && getZoneRegion(user?.zone) === getZoneRegion(t.site))
+                            ) && (
+                              <button
+                                type="button"
+                                onClick={() => openTicketModal("resend", t)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-600/40 bg-amber-600/10 px-2.5 py-1.5 text-xs font-semibold text-amber-350 hover:bg-amber-600/25"
+                                title="Reassign ticket"
+                              >
+                                <Send className="h-3.5 w-3.5 text-amber-400" />
+                                Pending/Reassign
+                              </button>
+                            )}
                             {t.status === "TRAVELLING" && isAssignedTech && (
                               <button
                                 type="button"
@@ -792,18 +1104,16 @@ export default function TicketsPage() {
                           const isCompleted = t.status === "COMPLETED";
                           const isRejected = t.status === "REJECTED";
                           const isAssigned = t.technician === user?.name;
-                          
-                          if (isCompleted) {
+                          const isTechSupportUser = user?.role === "Tech Support";
+                          const isSupportTicket = isTechSupportTicket(t);
+                          const isSupportCompleted = isSupportTicket && isCompletedTicket(t);
+
+                          if (isSupportCompleted || isCompleted) {
                             return (
-                              <label className="flex items-center gap-2 text-xs font-semibold text-emerald-400 select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={true}
-                                  disabled={true}
-                                  className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 cursor-default"
-                                />
-                                <span>Completed</span>
-                              </label>
+                              <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 select-none">
+                                <Check className="h-3.5 w-3.5" />
+                                Completed
+                              </span>
                             );
                           }
 
@@ -816,18 +1126,119 @@ export default function TicketsPage() {
                             );
                           }
 
-                          if (isAssigned && (t.status === "REVIEWED" || (t.status === "REVIEW" && reviewedTickets.has(t.id)))) {
+                          if (t.status === "ESCALATED" && t.escalationType === "WAREHOUSE" && (user?.role === "Field Technician" || user?.role === "Technician")) {
                             return (
-                              <label className="flex items-center gap-2 text-xs font-semibold text-slate-350 hover:text-white cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={false}
-                                  onChange={() => handleComplete(t.id)}
-                                  className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-sky-505 focus:ring-sky-550 cursor-pointer"
-                                />
-                                <span>Mark as Completed</span>
-                              </label>
+                              <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400 select-none">
+                                <Clock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                Pending
+                              </span>
                             );
+                          }
+
+                          if (isTechSupportUser && isSupportTicket) {
+                            if (t.status === "ESCALATED") {
+                              return (
+                                <div className="flex flex-col items-start gap-1.5">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400 select-none">
+                                    <Clock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                    Pending
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateStatus(t.id, "TECH_SUPPORT_IN_PROGRESS")}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20"
+                                    title="Start resolving escalated ticket"
+                                  >
+                                    <Play className="h-3.5 w-3.5" />
+                                    Start
+                                  </button>
+                                </div>
+                              );
+                            }
+                            if (t.status === "TECH_SUPPORT_IN_PROGRESS") {
+                              return (
+                                <div className="flex flex-col items-start gap-1.5">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-500/30 bg-slate-500/10 px-2.5 py-1 text-xs font-semibold text-slate-300 select-none">
+                                    Not Completed
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateStatus(t.id, "TECH_SUPPORT_COMPLETED")}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                                    title="Mark escalated ticket as completed"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                    Mark as Completed
+                                  </button>
+                                </div>
+                              );
+                            }
+                            if (t.status === "TECH_SUPPORT_COMPLETED") {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 select-none">
+                                  Completed by Support
+                                </span>
+                              );
+                            }
+                          }
+
+                          if (isAssigned || (isTechSupportUser && t.technician === user?.name)) {
+                            if (t.status === "TECH_SUPPORT_COMPLETED") {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleComplete(t.id)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                  Mark as Completed
+                                </button>
+                              );
+                            }
+                            
+                            const isWarehousePending = t.status === "PENDING" && t.escalationType === "WAREHOUSE";
+                            const showEscalate = t.status !== "ESCALATED" && t.status !== "TECH_SUPPORT_IN_PROGRESS" && t.status !== "TECH_SUPPORT_COMPLETED";
+                            
+                            if (
+                              t.status === "REVIEWED" || 
+                              (t.status === "REVIEW" && reviewedTickets.has(t.id)) ||
+                              isWarehousePending
+                            ) {
+                              return (
+                                <div className="flex items-center gap-2">
+                                  {isWarehousePending ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setWarehouseCompleteModal({ open: true, ticket: t })}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20"
+                                    >
+                                      <Clock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                      Pending
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleComplete(t.id)}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                      Mark as Completed
+                                    </button>
+                                  )}
+                                  {showEscalate && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEscalateModal({ open: true, ticketId: t.id, ticket: t })}
+                                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20"
+                                      title="Escalate ticket"
+                                    >
+                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                                      Escalated
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            }
                           }
 
                           return null;
@@ -901,6 +1312,14 @@ export default function TicketsPage() {
         onConfirm={handleRejectConfirm}
       />
 
+      <EscalateTicketModal
+        open={escalateModal.open}
+        ticketId={escalateModal.ticketId}
+        ticket={escalateModal.ticket}
+        onClose={() => setEscalateModal({ open: false, ticketId: null, ticket: null })}
+        onConfirm={handleEscalateConfirm}
+      />
+
       <ReachedModal
         open={reachedModal.open}
         ticketId={reachedModal.ticketId}
@@ -929,10 +1348,229 @@ export default function TicketsPage() {
           const t = ticketList.find((tk) => tk.id === id);
           setRejectModal({ open: true, ticketId: id, ticket: t || null });
         }}
-        onSend={(t) => openTicketModal(t.status === "REJECTED" ? "resend" : "send", t)}
+        onSend={(t) => openTicketModal(t.status === "REJECTED" || t.status === "ESCALATED" ? "resend" : "send", t)}
         onStartTravel={(id) => handleUpdateStatus(id, "TRAVELLING")}
         onComplete={(id) => handleComplete(id)}
+        onEscalate={(t) => {
+          setEscalateModal({ open: true, ticketId: t.id, ticket: t });
+          setDetailsModalTicket(null);
+        }}
+        onUpdateStatus={handleUpdateStatus}
       />
+
+      {/* Focused Completion Modal for Warehouse Reassigned Tickets */}
+      {warehouseCompleteModal.open && warehouseCompleteModal.ticket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/80">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/40 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-amber-400" />
+                <h3 className="text-base font-bold text-white">Warehouse Assignment Completion</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWarehouseCompleteModal({ open: false, ticket: null })}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-5">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Please review the devices and components assigned by the Warehouse Manager. Once verified, click <strong>Mark as Completed</strong> to close this ticket.
+              </p>
+
+              {/* Assigned Devices */}
+              {(() => {
+                const parsed = parseReassignedDevicesAndComponents(warehouseCompleteModal.ticket);
+                return (
+                  <div className="space-y-4">
+                    {parsed.devices.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Assigned Devices</h4>
+                        <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 space-y-2">
+                          {parsed.devices.map((d, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-xs text-slate-350 first:pt-0 pt-2 border-b border-slate-800/40 last:border-b-0 pb-2 last:pb-0">
+                              <span className="font-semibold text-slate-200">{d.name}</span>
+                              <span className="font-mono text-sky-400 font-bold">{d.id}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {parsed.components.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Assigned Components</h4>
+                        <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 space-y-2">
+                          {parsed.components.map((c, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-xs text-slate-350 first:pt-0 pt-2 border-b border-slate-800/40 last:border-b-0 pb-2 last:pb-0">
+                              <span className="font-semibold text-slate-200">{c.name}</span>
+                              <span className="text-sky-400 font-mono font-bold">Qty: {c.qty}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center gap-3 border-t border-slate-800 bg-slate-950/20 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setWarehouseCompleteModal({ open: false, ticket: null })}
+                className="flex-1 rounded-xl border border-slate-700 bg-slate-800/50 py-2.5 text-xs font-semibold text-slate-350 hover:bg-slate-800 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ticketId = warehouseCompleteModal.ticket.id;
+                  setWarehouseCompleteModal({ open: false, ticket: null });
+                  await handleComplete(ticketId);
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
+              >
+                <Check className="h-4 w-4" />
+                Mark as Completed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Focused Modal for Tech Support Details */}
+      {techSupportModal.open && techSupportModal.ticket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/80">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/40 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <Headphones className="h-5 w-5 text-violet-400" />
+                <h3 className="text-base font-bold text-white">Tech Support Details</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTechSupportModal({ open: false, ticket: null })}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-5">
+              <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Ticket ID</span>
+                    <span className="text-violet-300 font-mono font-semibold">{techSupportModal.ticket.id}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Current Status</span>
+                    <span className="text-slate-200 font-medium">
+                      {String(techSupportModal.ticket.status || "PENDING").replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Customer</span>
+                    <span className="text-slate-200 font-medium">{techSupportModal.ticket.customer || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Site</span>
+                    <span className="text-slate-200 font-medium">{techSupportModal.ticket.site || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Received Date</span>
+                    <span className="text-slate-200 font-medium">
+                      {formatTicketDateTime(
+                        techSupportModal.ticket.escalationDate ||
+                        techSupportModal.ticket.escalatedAt ||
+                        techSupportModal.ticket.createdAt
+                      )}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Completed Date</span>
+                    <span className="text-slate-200 font-medium">
+                      {techSupportModal.ticket.completedAt
+                        ? formatTicketDateTime(techSupportModal.ticket.completedAt)
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sky-400">
+                  <Phone className="h-4 w-4" />
+                  <span className="font-semibold text-xs uppercase tracking-wider">Tech Support Contact Card</span>
+                </div>
+                <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Contact Name</span>
+                    <span className="text-slate-200 font-medium">Aarav Mehta</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Phone Number</span>
+                    <span className="text-sky-300 font-mono font-medium">+91 98765 43100</span>
+                  </div>
+                  <div className="col-span-2 border-t border-slate-800/60 pt-2.5">
+                    <span className="text-slate-500 block">Support Desk</span>
+                    <span className="text-slate-200 font-medium">IoT & Hardware Diagnostics (24/7 Desk)</span>
+                  </div>
+                </div>
+              </div>
+
+              {techSupportModal.ticket.escalatedReason && (
+                <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-4 space-y-2">
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Escalation Reason
+                  </span>
+                  <span className="block text-xs text-slate-350 bg-slate-900/10 p-2.5 rounded-lg border border-slate-850 font-medium">
+                    {techSupportModal.ticket.escalatedReason}
+                  </span>
+                </div>
+              )}
+
+              <p className="text-xs text-slate-400 leading-relaxed text-center">
+                After discussing the issue and implementing the solution, click <strong>Mark as Completed</strong> to close this ticket.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center gap-3 border-t border-slate-800 bg-slate-950/20 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setTechSupportModal({ open: false, ticket: null })}
+                className="flex-1 rounded-xl border border-slate-700 bg-slate-800/50 py-2.5 text-xs font-semibold text-slate-350 hover:bg-slate-800 hover:text-white"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ticketId = techSupportModal.ticket.id;
+                  setTechSupportModal({ open: false, ticket: null });
+                  await handleUpdateStatus(ticketId, "TECH_SUPPORT_COMPLETED");
+                }}
+                disabled={techSupportModal.ticket.status === "TECH_SUPPORT_COMPLETED" || techSupportModal.ticket.status === "COMPLETED"}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
+              >
+                <Check className="h-4 w-4" />
+                Mark as Completed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

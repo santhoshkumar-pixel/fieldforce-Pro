@@ -1,14 +1,16 @@
 -- Seed Data for FieldForce Database
 
--- Delete any extra roles to ensure only the specified 6 roles exist
-DELETE FROM roles WHERE id NOT IN ('role-admin', 'role-technician', 'role-warehouse', 'role-tech', 'role-product-management');
+-- Delete any extra roles to ensure only the specified 7 roles exist
+DELETE FROM roles WHERE id NOT IN ('role-super-admin', 'role-admin', 'role-technician', 'role-warehouse', 'role-tech', 'role-product-management', 'role-tech-support');
 
 -- 1. Insert Roles
 INSERT INTO roles (id, name, description, users_count) VALUES
-('role-admin', 'Operational Manager', 'Operational Manager and full system access', 2)
+('role-super-admin', 'Super Admin', 'Super Admin and full system access', 1)
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, users_count = EXCLUDED.users_count;
 
-
+INSERT INTO roles (id, name, description, users_count) VALUES
+('role-admin', 'Operational Manager', 'Operational Manager and full system access', 2)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, users_count = EXCLUDED.users_count;
 
 INSERT INTO roles (id, name, description, users_count) VALUES
 ('role-technician', 'Field Technician', 'Resolve device issues and update ticket status in the field', 18)
@@ -26,8 +28,18 @@ INSERT INTO roles (id, name, description, users_count) VALUES
 ('role-product-management', 'Product Management', 'View-only access to all dashboards and operations', 0)
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, users_count = EXCLUDED.users_count;
 
+INSERT INTO roles (id, name, description, users_count) VALUES
+('role-tech-support', 'Tech Support', 'Resolve escalated technical support issues', 1)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, users_count = EXCLUDED.users_count;
+
 
 -- 2. Insert Role Permissions
+-- Super Admin permissions
+DELETE FROM role_permissions WHERE role_id = 'role-super-admin';
+INSERT INTO role_permissions (role_id, permission) VALUES
+('role-super-admin', '*.*')
+ON CONFLICT DO NOTHING;
+
 -- Operational Manager permissions (wildcard access, restricted by region in UI)
 DELETE FROM role_permissions WHERE role_id = 'role-admin';
 INSERT INTO role_permissions (role_id, permission) VALUES
@@ -35,8 +47,8 @@ INSERT INTO role_permissions (role_id, permission) VALUES
 ON CONFLICT DO NOTHING;
 
 
-
 -- Field Technician permissions
+DELETE FROM role_permissions WHERE role_id = 'role-technician';
 INSERT INTO role_permissions (role_id, permission) VALUES
 ('role-technician', 'tickets.view'),
 ('role-technician', 'tickets.update'),
@@ -84,6 +96,17 @@ INSERT INTO role_permissions (role_id, permission) VALUES
 ('role-product-management', 'training.view')
 ON CONFLICT DO NOTHING;
 
+-- Tech Support permissions
+DELETE FROM role_permissions WHERE role_id = 'role-tech-support';
+INSERT INTO role_permissions (role_id, permission) VALUES
+('role-tech-support', 'tickets.view'),
+('role-tech-support', 'tickets.update'),
+('role-tech-support', 'devices.view'),
+('role-tech-support', 'evidence.upload'),
+('role-tech-support', 'attendance.view'),
+('role-tech-support', 'training.view')
+ON CONFLICT DO NOTHING;
+
 
 -- 3. Insert Users
 INSERT INTO users (id, name, email, password, role, team, status, zone, mobile) VALUES
@@ -100,7 +123,8 @@ INSERT INTO users (id, name, email, password, role, team, status, zone, mobile) 
 ('U-011', 'Neha Sen', 'neha@fieldforce.io', 'password123', 'Technician', 'Operations Control', 'Active', 'Goa', '+91 98765 43220'),
 ('U-012', 'Karan Johar', 'karan@fieldforce.io', 'password123', 'Technician', 'Operations Control', 'Active', 'Goa', '+91 98765 43221'),
 ('U-013', 'Ravi Shankar', 'ravi@fieldforce.io', 'password123', 'Field Technician', 'South Goa Squad', 'Active', 'South Goa', '+91 98765 43222'),
-('U-014', 'Mahesh Patil', 'mahesh@fieldforce.io', 'password123', 'Field Technician', 'North Goa Squad', 'Active', 'North Goa', '+91 98765 43223')
+('U-014', 'Mahesh Patil', 'mahesh@fieldforce.io', 'password123', 'Field Technician', 'North Goa Squad', 'Active', 'North Goa', '+91 98765 43223'),
+('U-015', 'Aarav Mehta', 'aarav@fieldforce.io', 'password123', 'Tech Support', 'Operations Control', 'Active', 'Goa', '+91 98765 43100')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, password = EXCLUDED.password, role = EXCLUDED.role, team = EXCLUDED.team, status = EXCLUDED.status, zone = EXCLUDED.zone, mobile = EXCLUDED.mobile;
 
 
@@ -129,66 +153,66 @@ INSERT INTO devices (id, name, type, status, firmware, connectivity, battery, la
 ('MCH714', 'Humidity Sensor', 'Go', 'Critical', 'v3.2.0', 'LoRa', 15, '12m ago', ''),
 ('MCH715', 'Power Meter', 'Ace', 'Online', 'v3.1.2', 'WiFi', 82, '4m ago', 'São Paulo Solar Hub'),
 ('MCH716', 'Network Gateway', 'FastScan', 'Online', 'v1.9.2', 'LTE', 90, '1m ago', 'London Operations Center'),
-('MCH720', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH721', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH722', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH723', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH724', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH725', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH726', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH727', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH728', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH729', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH730', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH731', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH732', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH733', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH734', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH740', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH741', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH742', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH743', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH744', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH745', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH746', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH747', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH748', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH749', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH750', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH751', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH752', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH753', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH754', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', ''),
-('MCH760', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH761', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH762', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH763', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH764', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH765', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH766', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH767', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH768', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH769', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH770', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH771', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH772', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH773', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH774', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', ''),
-('MCH780', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH781', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH782', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH783', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH784', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH785', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH786', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH787', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH788', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH789', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH790', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH791', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH792', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH793', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
-('MCH794', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', ''),
+('MCH720', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH721', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH722', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH723', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH724', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH725', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH726', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH727', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH728', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH729', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH730', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH731', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH732', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH733', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH734', 'Pressure Sensor', 'Ace', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH740', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Goa Warehouse'),
+('MCH741', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Goa Warehouse'),
+('MCH742', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Goa Warehouse'),
+('MCH743', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Goa Warehouse'),
+('MCH744', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Goa Warehouse'),
+('MCH745', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Goa Warehouse'),
+('MCH746', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH747', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH748', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH749', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH750', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH751', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH752', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH753', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH754', 'Gateway Unit', 'Mini', 'Online', 'v2.0.0', 'None', 100, 'never', 'Bhutan Warehouse'),
+('MCH760', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH761', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH762', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH763', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH764', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH765', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH766', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH767', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH768', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH769', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Goa Warehouse'),
+('MCH770', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Bhutan Warehouse'),
+('MCH771', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Bhutan Warehouse'),
+('MCH772', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Bhutan Warehouse'),
+('MCH773', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Bhutan Warehouse'),
+('MCH774', 'Connectivity Module', 'FastScan', 'Online', 'v1.5.0', 'WiFi', 100, 'never', 'Bhutan Warehouse'),
+('MCH780', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH781', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH782', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH783', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH784', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH785', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH786', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH787', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH788', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH789', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Goa Warehouse'),
+('MCH790', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH791', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH792', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH793', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
+('MCH794', 'Battery Monitor', 'Go', 'Online', 'v3.0.0', 'LTE', 100, 'never', 'Bhutan Warehouse'),
 ('MCH951', 'Thimphu GPS tracker', 'Go', 'Online', 'v3.0.0', 'LTE', 85, '5m ago', 'Thimphu Alpha'),
 ('MCH952', 'Thimphu Temp Sensor', 'Ace', 'Warning', 'v3.1.0', 'WiFi', 70, '12m ago', 'Thimphu Alpha'),
 ('MCH953', 'Paro Gate Camera', 'Mini', 'Online', 'v2.5.0', 'LTE', 90, '1m ago', 'Paro Beta'),
@@ -280,5 +304,29 @@ Device not available', NOW() - INTERVAL '4.5 hours', 15.275, 74.124, 'Ravi Shank
 ('U-014', 'TK-1001', 'REVIEW', 'Status Changed → Reached', NOW() - INTERVAL '3.5 hours', 15.5812, 73.7421, 'Mahesh Patil'),
 ('U-014', 'TK-1001', 'REVIEWED', 'Status Changed → Reviewed', NOW() - INTERVAL '3.0 hours', 15.5812, 73.7421, 'Admin'),
 ('U-014', 'TK-1001', 'COMPLETED', 'Ticket Marked as Completed by Mahesh Patil', NOW() - INTERVAL '2.0 hours', 15.5812, 73.7421, 'Mahesh Patil');
+
+-- Seed purchase_date and warranty_expiry_date for existing mock devices
+UPDATE devices SET purchase_date = '2025-06-01' WHERE purchase_date IS NULL;
+UPDATE devices SET warranty_expiry_date = '2026-06-01' WHERE warranty_expiry_date IS NULL;
+
+-- Seed components table
+INSERT INTO components (name, category, quantity, min_limit, warehouse, region, status, last_updated) VALUES
+('Premium HD Screen', 'Screens', 12, 5, 'Goa Warehouse', 'Goa', 'In Stock', '2026-06-25'),
+('Li-Ion 5000mAh Battery', 'Batteries', 20, 8, 'Goa Warehouse', 'Goa', 'In Stock', '2026-06-26'),
+('Ultra-Sonic Range Sensor', 'Sensors', 15, 6, 'Goa Warehouse', 'Goa', 'In Stock', '2026-06-27'),
+('Heavy-Duty Type-C Cable', 'Cables', 4, 10, 'Goa Warehouse', 'Goa', 'Low Stock', '2026-06-28'),
+('USB-C Fast Charger 18W', 'Chargers', 30, 10, 'Goa Warehouse', 'Goa', 'In Stock', '2026-06-29'),
+('Main Processing Board v2', 'Boards', 8, 3, 'Goa Warehouse', 'Goa', 'In Stock', '2026-06-29'),
+('Premium HD Screen', 'Screens', 8, 5, 'Bhutan Warehouse', 'Bhutan', 'In Stock', '2026-06-25'),
+('Li-Ion 5000mAh Battery', 'Batteries', 15, 8, 'Bhutan Warehouse', 'Bhutan', 'In Stock', '2026-06-26'),
+('Ultra-Sonic Range Sensor', 'Sensors', 3, 6, 'Bhutan Warehouse', 'Bhutan', 'Low Stock', '2026-06-27'),
+('Heavy-Duty Type-C Cable', 'Cables', 25, 10, 'Bhutan Warehouse', 'Bhutan', 'In Stock', '2026-06-28'),
+('USB-C Fast Charger 18W', 'Chargers', 2, 5, 'Bhutan Warehouse', 'Bhutan', 'Low Stock', '2026-06-29'),
+('Main Processing Board v2', 'Boards', 1, 3, 'Bhutan Warehouse', 'Bhutan', 'Low Stock', '2026-06-29');
+
+-- Seed component_usage_logs table
+INSERT INTO component_usage_logs (component_id, component_name, quantity, device_id, ticket_id, reason, logged_by, date_logged) VALUES
+(1, 'Premium HD Screen', 1, 'MCH901', 'TK-1001', 'Damaged screen replacement', 'Sanjay Dutt', '2026-06-28'),
+(2, 'Li-Ion 5000mAh Battery', 2, 'MCH874', 'TK-1001', 'Battery degrade replacement', 'Rahul Roy', '2026-06-29');
 
 

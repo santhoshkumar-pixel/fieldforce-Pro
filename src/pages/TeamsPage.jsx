@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Users, Search, UserCog, ArrowLeft, ChevronRight, X, Clock, Layers, Shield, Cpu, Radio, Wifi, Battery, Briefcase, User, MoreVertical, Trash2, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
+import { Plus, Users, Search, UserCog, ArrowLeft, ChevronRight, X, Clock, Layers, Shield, Cpu, Radio, Wifi, Battery, Briefcase, User, MoreVertical, Trash2, ArrowUpDown, ChevronUp, ChevronDown, RotateCcw, RefreshCw } from "lucide-react";
 import clsx from "clsx";
 import PageHeader from "../components/PageHeader";
 import Badge from "../components/ui/Badge";
@@ -8,6 +8,7 @@ import { useAttendance } from "../context/AttendanceContext";
 import { getUserPlace } from "../utils/roleHelpers";
 import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import { api } from "../utils/api";
+import CustomSelect from "../components/ui/CustomSelect";
 import {
   AreaChart,
   Area,
@@ -1024,8 +1025,13 @@ export default function TeamsPage({ defaultTab = "teams" }) {
  action={headerAction}
  />
 
- {activeTab === "teams" ? (
- selectedPlace === null ? (
+  {activeTab === "teams" ? (
+    teamsList.length === 0 ? (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <RefreshCw className="h-6 w-6 animate-spin text-violet-500" />
+        <span className="text-xs text-slate-500 font-medium">Loading Schemes...</span>
+      </div>
+    ) : selectedPlace === null ? (
  /* Place Overview (Rows Format) */
  <div className="flex flex-col gap-4">
  {places.map((place) => (
@@ -1203,31 +1209,43 @@ export default function TeamsPage({ defaultTab = "teams" }) {
 
  {/* Charts Grid */}
  <div className="grid gap-6 md:grid-cols-2">
- <Card className="glass-card">
- <CardBody>
- <EmployeeAreaChart 
- data={[
- { label: "Technician", value: placeUsers.filter(u => u.role === "Field Technician" || u.role === "Technician").length, gradient: "from-sky-500 to-sky-300" },
- { label: "Warehouse", value: placeUsers.filter(u => u.role === "Warehouse" || u.role === "Warehouse Manager").length, gradient: "from-indigo-500 to-indigo-300" },
- { label: "Operational Manager", value: placeUsers.filter(u => u.role === "Operational Manager").length, gradient: "from-rose-500 to-rose-300" }
- ]}
- />
- </CardBody>
- </Card>
- 
- <Card className="glass-card">
- <CardBody>
- <DeviceCategoryPieChart 
- data={[
- { label: "ACE Sensors", value: placeDevices.filter(d => d.type === "Ace").length, gradient: "from-emerald-500 to-emerald-300" },
- { label: "Mini Gateways", value: placeDevices.filter(d => d.type === "Mini").length, gradient: "from-violet-500 to-violet-300" },
- { label: "FastScan Mod.", value: placeDevices.filter(d => d.type === "FastScan").length, gradient: "from-sky-500 to-sky-300" },
- { label: "Go Monitors", value: placeDevices.filter(d => d.type === "Go").length, gradient: "from-pink-500 to-pink-300" }
- ]}
- />
- </CardBody>
- </Card>
- </div>
+  <Card className="glass-card">
+  <CardBody>
+  {placeUsers.length > 0 ? (
+  <EmployeeAreaChart 
+  data={[
+  { label: "Technician", value: placeUsers.filter(u => u.role === "Field Technician" || u.role === "Technician").length, gradient: "from-sky-500 to-sky-300" },
+  { label: "Warehouse", value: placeUsers.filter(u => u.role === "Warehouse" || u.role === "Warehouse Manager").length, gradient: "from-indigo-500 to-indigo-300" },
+  { label: "Operational Manager", value: placeUsers.filter(u => u.role === "Operational Manager").length, gradient: "from-rose-500 to-rose-300" }
+  ]}
+  />
+  ) : (
+  <div className="flex flex-col items-center justify-center h-[180px] text-slate-500 text-xs">
+    No Employee Data Available
+  </div>
+  )}
+  </CardBody>
+  </Card>
+  
+  <Card className="glass-card">
+  <CardBody>
+  {placeDevices.length > 0 ? (
+  <DeviceCategoryPieChart 
+  data={[
+  { label: "ACE Sensors", value: placeDevices.filter(d => d.type === "Ace").length, gradient: "from-emerald-500 to-emerald-300" },
+  { label: "Mini Gateways", value: placeDevices.filter(d => d.type === "Mini").length, gradient: "from-violet-500 to-violet-300" },
+  { label: "FastScan Mod.", value: placeDevices.filter(d => d.type === "FastScan").length, gradient: "from-sky-500 to-sky-300" },
+  { label: "Go Monitors", value: placeDevices.filter(d => d.type === "Go").length, gradient: "from-pink-500 to-pink-300" }
+  ]}
+  />
+  ) : (
+  <div className="flex flex-col items-center justify-center h-[180px] text-slate-500 text-xs">
+    No Device Data Available
+  </div>
+  )}
+  </CardBody>
+  </Card>
+  </div>
 
  {/* Squads & Teams List */}
  <div className="space-y-3">
@@ -1446,6 +1464,7 @@ export default function TeamsPage({ defaultTab = "teams" }) {
  )}
  </button>
  </th>
+ <th className="pb-3 pr-4 whitespace-nowrap text-left text-xs uppercase font-bold text-slate-500">Actions</th>
  </tr>
 
  {/* Filtering Row */}
@@ -1463,63 +1482,63 @@ export default function TeamsPage({ defaultTab = "teams" }) {
  </div>
  </th>
  <th className="py-2.5 pr-4">
- <select
+ <CustomSelect
  value={colEmpRoleFilter}
  onChange={(e) => setColEmpRoleFilter(e.target.value)}
- className="w-full rounded-xl border border-slate-700 bg-slate-950/60 py-1.5 px-2 text-xs text-slate-100 outline-none focus:border-violet-500/50 cursor-pointer"
- >
- <option value="all">All Roles</option>
- {uniquePlaceRoles.map((role) => (
- <option key={role} value={role}>{role}</option>
- ))}
- </select>
+ options={[
+ { value: "all", label: "All Roles" },
+ ...uniquePlaceRoles.map((role) => ({ value: role, label: role }))
+ ]}
+ fullWidth
+ className="py-1.5 px-2 text-xs text-slate-100 border-slate-800 bg-slate-950/60"
+ />
  </th>
  <th className="py-2.5 pr-4">
- <select
+ <CustomSelect
  value={colEmpTeamFilter}
  onChange={(e) => setColEmpTeamFilter(e.target.value)}
- className="w-full rounded-xl border border-slate-700 bg-slate-950/60 py-1.5 px-2 text-xs text-slate-100 outline-none focus:border-violet-500/50 cursor-pointer"
- >
- <option value="all">All Teams</option>
- <option value="Unassigned">Unassigned</option>
- {uniquePlaceTeams.filter(t => t && t !== "Unassigned").map((team) => (
- <option key={team} value={team}>{team}</option>
- ))}
- </select>
+ options={[
+ { value: "all", label: "All Teams" },
+ { value: "Unassigned", label: "Unassigned" },
+ ...uniquePlaceTeams.filter(t => t && t !== "Unassigned").map((team) => ({ value: team, label: team }))
+ ]}
+ fullWidth
+ className="py-1.5 px-2 text-xs text-slate-100 border-slate-800 bg-slate-950/60"
+ />
  </th>
  <th className="py-2.5 pr-4">
- <select
+ <CustomSelect
  value={colEmpZoneFilter}
  onChange={(e) => setColEmpZoneFilter(e.target.value)}
- className="w-full rounded-xl border border-slate-700 bg-slate-950/60 py-1.5 px-2 text-xs text-slate-100 outline-none focus:border-violet-500/50 cursor-pointer"
- >
- <option value="all">All Zones</option>
- {uniquePlaceZones.map((zone) => (
- <option key={zone} value={zone}>{zone}</option>
- ))}
- </select>
+ options={[
+ { value: "all", label: "All Zones" },
+ ...uniquePlaceZones.map((zone) => ({ value: zone, label: zone }))
+ ]}
+ fullWidth
+ className="py-1.5 px-2 text-xs text-slate-100 border-slate-800 bg-slate-950/60"
+ />
  </th>
  <th className="py-2.5 pr-4">
- <div className="flex items-center gap-1.5">
- <select
+ <CustomSelect
  value={colEmpStatusFilter}
  onChange={(e) => setColEmpStatusFilter(e.target.value)}
- className="flex-1 rounded-xl border border-slate-700 bg-slate-950/60 py-1.5 px-2 text-xs text-slate-100 outline-none focus:border-violet-500/50 cursor-pointer"
- >
- <option value="all">All Statuses</option>
- {uniquePlaceStatuses.map((status) => (
- <option key={status} value={status}>{status}</option>
- ))}
- </select>
+ options={[
+ { value: "all", label: "All Statuses" },
+ ...uniquePlaceStatuses.map((status) => ({ value: status, label: status }))
+ ]}
+ fullWidth
+ className="w-full text-xs text-slate-100 border-slate-800 bg-slate-950/60"
+ />
+ </th>
+ <th className="py-2.5 pr-4">
  <button
  type="button"
  onClick={handleClearEmpFilters}
  title="Reset Filters"
- className="flex h-7 w-7 items-center justify-center rounded-xl border border-slate-700 bg-slate-950/40 text-slate-400 hover:text-white hover:bg-slate-800 shrink-0"
+ className="flex h-7 w-7 items-center justify-center rounded-xl border border-slate-700 bg-slate-950/40 text-slate-400 hover:text-white hover:bg-slate-800 shrink-0 cursor-pointer"
  >
  <RotateCcw className="h-3 w-3" />
  </button>
- </div>
  </th>
  </tr>
  </thead>
@@ -1746,7 +1765,7 @@ export default function TeamsPage({ defaultTab = "teams" }) {
  </Card>
  </div>
  )
- ) : (
+) : (
  /* User Directory Tab */
  <Card className="glass-card">
    <CardHeader 

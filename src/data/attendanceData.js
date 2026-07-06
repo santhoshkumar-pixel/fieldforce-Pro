@@ -84,6 +84,19 @@ export const initialTechnicianShifts = [
     totalBreakMs: 45 * 60 * 1000,
     gps: null,
   },
+  {
+    id: "U-008",
+    name: "Aarav Mehta",
+    team: "Technical Support",
+    zone: "Central Goa",
+    shiftStatus: shiftStatuses.OFF_SHIFT,
+    online: false,
+    punchInAt: null,
+    punchOutAt: null,
+    breakStartAt: null,
+    totalBreakMs: 0,
+    gps: null,
+  },
 ];
 
 export const initialAttendanceHistory = [

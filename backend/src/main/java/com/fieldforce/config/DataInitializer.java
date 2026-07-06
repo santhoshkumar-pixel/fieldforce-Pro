@@ -22,10 +22,15 @@ public class DataInitializer {
             TicketRepository ticketRepo,
             TechnicianActivityLogRepository activityRepo) {
         return args -> {
-            // Update any existing users with old Scheme Admin/PC roles to Operational Manager
+            // Update any existing users with old Scheme Admin/PC/CP/Admin/Supervisor roles to Operational Manager
             List<User> allUsers = userRepo.findAll();
             for (User u : allUsers) {
-                if ("Scheme Admin".equalsIgnoreCase(u.getRole()) || "Scheme PC".equalsIgnoreCase(u.getRole())) {
+                String role = u.getRole();
+                if ("Scheme Admin".equalsIgnoreCase(role) || 
+                    "Scheme PC".equalsIgnoreCase(role) ||
+                    "Scheme CP".equalsIgnoreCase(role) ||
+                    "Admin".equalsIgnoreCase(role) ||
+                    "Supervisor".equalsIgnoreCase(role)) {
                     u.setRole("Operational Manager");
                     userRepo.save(u);
                 }

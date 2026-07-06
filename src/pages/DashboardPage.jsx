@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useAttendance } from "../context/AttendanceContext";
 import { useRegion, ALL_REGIONS } from "../context/RegionContext";
-import { getUserPlace } from "../utils/roleHelpers";
+import { getUserPlace, getZoneRegion } from "../utils/roleHelpers";
 import {
   Bar,
   BarChart,
@@ -381,9 +381,40 @@ function RegionSelectorCard({ selectedRegion, onSelect }) {
  );
 }
 
+const parseDeviceIdsAndNames = (deviceIdStr, deviceNameStr) => {
+  if (!deviceIdStr) return { devices: [], components: [] };
+  const ids = String(deviceIdStr).split(",").map(id => id.trim()).filter(Boolean);
+  const names = deviceNameStr ? String(deviceNameStr).split(",").map(n => n.trim()).filter(Boolean) : [];
+  
+  const parsedDevices = [];
+  const parsedComponents = [];
+  
+  ids.forEach((id, index) => {
+    const name = names[index] || id;
+    const nameStr = String(name);
+    if (id.startsWith("COMP-")) {
+      const qtyMatch = id.match(/\((\d+)\)/);
+      const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+      const cleanId = id.replace(/\s*\(\d+\)/, "");
+      parsedComponents.push({
+        id: cleanId,
+        name: nameStr.replace(/\s*\(x\d+\)/, "").replace(/\s*\(\d+\)/, ""),
+        qty
+      });
+    } else {
+      parsedDevices.push({
+        id,
+        name: nameStr
+      });
+    }
+  });
+  
+  return { devices: parsedDevices, components: parsedComponents };
+};
+
 export default function DashboardPage() {
  const { user, isSuperAdmin } = useAuth();
- const isTechnician = user?.role === "Technician" || user?.role === "Field Technician";
+ const isTechnician = user?.role === "Technician" || user?.role === "Field Technician" || user?.role === "Tech Support";
  const { selectedRegion, setSelectedRegionId } = useRegion();
 
  const userPlace = useMemo(() => {
@@ -429,7 +460,41 @@ export default function DashboardPage() {
   const [allDevices, setAllDevices] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [detailsModalTicket, setDetailsModalTicket] = useState(null);
+  const [deviceAssignments, setDeviceAssignments] = useState([]);
+  const [componentUsageLogs, setComponentUsageLogs] = useState([]);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [linkedTicket, setLinkedTicket] = useState(null);
+  const [isLoadingLinkedTicket, setIsLoadingLinkedTicket] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!selectedAssignment) {
+      setLinkedTicket(null);
+      return;
+    }
+    const tId = selectedAssignment.ticketId;
+    if (tId && tId !== "—" && tId !== "NEW") {
+      const found = allTickets.find(t => t.id === tId);
+      if (found) {
+        setLinkedTicket(found);
+      } else {
+        setIsLoadingLinkedTicket(true);
+        api.tickets.getById(tId)
+          .then(t => {
+            if (t) setLinkedTicket(t);
+          })
+          .catch(err => console.error("Error fetching linked ticket:", err))
+          .finally(() => setIsLoadingLinkedTicket(false));
+      }
+    } else {
+      setLinkedTicket(null);
+    }
+  }, [selectedAssignment, allTickets]);
+
+  const parsedHardware = useMemo(() => {
+    if (!linkedTicket) return { devices: [], components: [] };
+    return parseDeviceIdsAndNames(linkedTicket.deviceId, linkedTicket.deviceName);
+  }, [linkedTicket]);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
@@ -469,11 +534,20 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     try {
-      const [ticketsData, devicesData, usersData] = await Promise.all([
+      const [ticketsData, devicesData, usersData, assignsData, logsData] = await Promise.all([
         api.tickets.getAll(),
         api.devices.getAll(),
         api.users.getAll().catch(() => []),
+        api.devices.getAssignments().catch(() => []),
+        api.components.getUsageLogs().catch(() => []),
       ]);
+
+      if (assignsData) {
+        setDeviceAssignments(assignsData);
+      }
+      if (logsData) {
+        setComponentUsageLogs(logsData);
+      }
 
       if (usersData) {
         setAllUsers(usersData);
@@ -484,6 +558,15 @@ export default function DashboardPage() {
         const filteredTickets = ticketsData.filter((t) => {
           if (user?.role === "Field Technician" || user?.role === "Technician") {
             return t.technician === user?.name;
+          }
+          if (user?.role === "Tech Support") {
+            const isTechSupportEscalated = (
+              t.status === "ESCALATED" ||
+              t.status === "TECH_SUPPORT_IN_PROGRESS" ||
+              t.status === "TECH_SUPPORT_COMPLETED" ||
+              t.status === "COMPLETED"
+            ) && (t.escalationType === "TECH_SUPPORT" || t.escalatedToRole === "TECH_SUPPORT");
+            return isTechSupportEscalated || t.technician === user?.name;
           }
           if (!userPlace) return true;
           return getTicketPlace(t) === userPlace;
@@ -516,10 +599,11 @@ export default function DashboardPage() {
           return d.site.toLowerCase().includes(userPlace.toLowerCase());
         });
 
-        const counts = { Online: 0, Offline: 0, Warning: 0, Critical: 0, Maintenance: 0 };
+        const counts = { Online: 0, Offline: 0, Warning: 0, Damaged: 0 };
         filteredDevices.forEach((d) => {
-          let status = d.status;
-          if (status === "Maintenance Required") status = "Maintenance";
+          const status = d.status === "Critical" || String(d.status || "").toLowerCase().includes("maintenance")
+            ? "Damaged"
+            : d.status;
           if (counts[status] !== undefined) counts[status]++;
         });
 
@@ -527,8 +611,7 @@ export default function DashboardPage() {
           { label: "Online", value: counts.Online, tone: "emerald" },
           { label: "Offline", value: counts.Offline, tone: "slate" },
           { label: "Warning", value: counts.Warning, tone: "amber" },
-          { label: "Critical", value: counts.Critical, tone: "rose" },
-          { label: "Maintenance", value: counts.Maintenance, tone: "sky" },
+          { label: "Damaged", value: counts.Damaged, tone: "rose" },
         ]);
       }
     } catch (err) {
@@ -614,8 +697,33 @@ export default function DashboardPage() {
   const displayedTickets = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     const filtered = allTickets.filter((t) => {
+      // Warehouse Escalation visibility rule: visible only to Super Admin, Creator, Region Warehouse Manager, and Assigned/Escalated technician
+      if (t.status === "ESCALATED" && t.escalationType === "WAREHOUSE") {
+        const isCreator = t.createdBy === user?.name;
+        const isSuperAdmin = user?.role === "Super Admin";
+        const isParticularWarehouseManager =
+          user?.role === "Warehouse Manager" &&
+          getZoneRegion(user?.zone) === getZoneRegion(t.site);
+        const isAssignedOrEscalatedBy = t.technician === user?.name || t.escalatedBy === user?.name;
+        if (!(isSuperAdmin || isCreator || isParticularWarehouseManager || isAssignedOrEscalatedBy)) {
+          return false;
+        }
+      }
+
       if (user?.role === "Field Technician" || user?.role === "Technician") {
+        if (t.status === "ESCALATED" && t.escalationType === "WAREHOUSE") {
+          return t.technician === user?.name || t.escalatedBy === user?.name;
+        }
         return t.technician === user?.name;
+      }
+      if (user?.role === "Tech Support") {
+        const isTechSupportEscalated = (
+          t.status === "ESCALATED" || 
+          t.status === "TECH_SUPPORT_IN_PROGRESS" || 
+          t.status === "TECH_SUPPORT_COMPLETED" ||
+          t.status === "COMPLETED"
+        ) && (t.escalationType === "TECH_SUPPORT" || t.escalatedToRole === "TECH_SUPPORT");
+        return isTechSupportEscalated || t.technician === user?.name;
       }
       return !userPlace || getTicketPlace(t) === userPlace;
     });
@@ -655,6 +763,15 @@ export default function DashboardPage() {
     const filteredTickets = allTickets.filter((t) => {
       if (user?.role === "Field Technician" || user?.role === "Technician") {
         return t.technician === user?.name;
+      }
+      if (user?.role === "Tech Support") {
+        const isTechSupportEscalated = (
+          t.status === "ESCALATED" || 
+          t.status === "TECH_SUPPORT_IN_PROGRESS" || 
+          t.status === "TECH_SUPPORT_COMPLETED" ||
+          t.status === "COMPLETED"
+        ) && (t.escalationType === "TECH_SUPPORT" || t.escalatedToRole === "TECH_SUPPORT");
+        return isTechSupportEscalated || t.technician === user?.name;
       }
       return !userPlace || getTicketPlace(t) === userPlace;
     });
@@ -704,6 +821,15 @@ export default function DashboardPage() {
     const regionalTickets = allTickets.filter(t => {
       if (user?.role === "Field Technician" || user?.role === "Technician") {
         return t.technician === user?.name;
+      }
+      if (user?.role === "Tech Support") {
+        const isTechSupportEscalated = (
+          t.status === "ESCALATED" || 
+          t.status === "TECH_SUPPORT_IN_PROGRESS" || 
+          t.status === "TECH_SUPPORT_COMPLETED" ||
+          t.status === "COMPLETED"
+        ) && (t.escalationType === "TECH_SUPPORT" || t.escalatedToRole === "TECH_SUPPORT");
+        return isTechSupportEscalated || t.technician === user?.name;
       }
       return !userPlace || getTicketPlace(t) === userPlace;
     });
@@ -858,7 +984,7 @@ export default function DashboardPage() {
 
   const employeeRoleData = useMemo(() => {
     const roles = {
-      "Admin": 0,
+      "Super Admin": 0,
       "Operational Manager": 0,
       "Technician": 0,
       "Warehouse Manager": 0,
@@ -868,8 +994,8 @@ export default function DashboardPage() {
 
     filteredUsersForCharts.forEach(u => {
       const role = u.role || "";
-      if (role === "Admin" || role === "Super Admin") {
-        roles["Admin"]++;
+      if (role === "Super Admin" || role === "Admin") {
+        roles["Super Admin"]++;
       } else if (role === "Operational Manager" || role === "Scheme PC" || role === "Scheme Admin") {
         roles["Operational Manager"]++;
       } else if (role === "Field Technician" || role === "Technician" || role === "Tech") {
@@ -884,7 +1010,7 @@ export default function DashboardPage() {
     });
 
     return [
-      { name: "Admin", count: roles["Admin"] },
+      { name: "Super Admin", count: roles["Super Admin"] },
       { name: "Operational Manager", count: roles["Operational Manager"] },
       { name: "Technician", count: roles["Technician"] },
       { name: "Warehouse Manager", count: roles["Warehouse Manager"] },
@@ -1078,9 +1204,11 @@ export default function DashboardPage() {
  ))}
  </div>
 
- {/* Monitoring & Devices row */}
- <div className="grid gap-6 xl:grid-cols-3">
- <Card className="xl:col-span-2 glass-card">
+
+
+  {/* Monitoring & Devices row */}
+  <div className="grid gap-6 xl:grid-cols-3">
+  <Card className={`${isTechnician ? "xl:col-span-3" : "xl:col-span-2"} glass-card`}>
  <CardHeader
  title={`Live Ticket Monitoring${selectedRegion ? ` — ${selectedRegion.name}` : ""}`}
  action={
@@ -1124,15 +1252,22 @@ export default function DashboardPage() {
  <Badge variant={severityVariant(t.severity)}>{t.severity}</Badge>
  </td>
  <td className="px-5 py-4">
-   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase ${
-     t.status === "REJECTED" ? "text-red-400" :
-     t.status === "COMPLETED" ? "text-emerald-400" : "text-slate-300"
-   }`}>
-     {t.status === "REJECTED" && <X className="h-3 w-3 stroke-[3] text-red-400 shrink-0" />}
-     {t.status === "COMPLETED" && <Check className="h-3.5 w-3.5 stroke-[3] text-emerald-400 shrink-0" />}
-     {t.status}
-   </span>
- </td>
+    {(() => {
+      const isWarehouseEscalated = t.status === "ESCALATED" && t.escalationType === "WAREHOUSE";
+      const displayStatus = isWarehouseEscalated ? "PENDING" : t.status;
+      return (
+        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase ${
+          displayStatus === "REJECTED" ? "text-red-400" :
+          displayStatus === "COMPLETED" ? "text-emerald-400" : 
+          displayStatus === "PENDING" ? "text-amber-400" : "text-slate-300"
+        }`}>
+          {displayStatus === "REJECTED" && <X className="h-3 w-3 stroke-[3] text-red-400 shrink-0" />}
+          {displayStatus === "COMPLETED" && <Check className="h-3.5 w-3.5 stroke-[3] text-emerald-400 shrink-0" />}
+          {displayStatus}
+        </span>
+      );
+    })()}
+  </td>
  <td className="px-5 py-4 text-slate-200 whitespace-nowrap">
  {t.assignedTo || t.technician || t.technicianName || t.assignedUser || t.assignee || "—"}
  </td>
@@ -1154,57 +1289,59 @@ export default function DashboardPage() {
  </CardBody>
  </Card>
 
- <Card className="glass-card">
- <CardHeader
- title="Device Inventory"
- action={
- <Link to="/devices" className="flex items-center gap-1 text-sm text-sky-400 hover:text-sky-300">
- View all <ArrowRight className="h-4 w-4" />
- </Link>
- }
- />
- <CardBody className="p-0">
- <div className="max-h-[380px] overflow-y-auto">
- <table className="w-full text-left text-sm">
- <thead className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500 sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10">
- <tr>
- <th className="px-5 py-3">Device ID</th>
- <th className="px-5 py-3">Type</th>
- <th className="px-5 py-3 text-right">Status</th>
- </tr>
- </thead>
- <tbody>
- {displayedDevices.length > 0 ? (
- displayedDevices.map((d) => (
- <tr key={d.id} className="border-b border-slate-800/60 hover:bg-slate-900/40">
- <td className="px-5 py-4 font-medium text-white">
- <button
- type="button"
- onClick={() => navigate(`/devices/${d.id}`)}
- className="text-sky-400 hover:text-sky-300 font-semibold hover:underline cursor-pointer text-left"
- >
- {d.id}
- </button>
- </td>
- <td className="px-5 py-4 text-slate-350">{d.type}</td>
- <td className="px-5 py-4 text-right whitespace-nowrap">
- <Badge variant={deviceStatusVariant(d.status)}>{d.status}</Badge>
- </td>
- </tr>
- ))
- ) : (
- <tr>
- <td colSpan={3} className="px-5 py-10 text-center text-slate-500 text-sm">
- No devices found for {selectedRegion?.name || "this region"}
- </td>
- </tr>
- )}
- </tbody>
- </table>
- </div>
- </CardBody>
- </Card>
- </div>
+  {!isTechnician && (
+  <Card className="glass-card">
+  <CardHeader
+  title="Device Inventory"
+  action={
+  <Link to="/devices" className="flex items-center gap-1 text-sm text-sky-400 hover:text-sky-300">
+  View all <ArrowRight className="h-4 w-4" />
+  </Link>
+  }
+  />
+  <CardBody className="p-0">
+  <div className="max-h-[380px] overflow-y-auto">
+  <table className="w-full text-left text-sm">
+  <thead className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500 sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10">
+  <tr>
+  <th className="px-5 py-3">Device ID</th>
+  <th className="px-5 py-3">Type</th>
+  <th className="px-5 py-3 text-right">Status</th>
+  </tr>
+  </thead>
+  <tbody>
+  {displayedDevices.length > 0 ? (
+  displayedDevices.map((d) => (
+  <tr key={d.id} className="border-b border-slate-800/60 hover:bg-slate-900/40">
+  <td className="px-5 py-4 font-medium text-white">
+  <button
+  type="button"
+  onClick={() => navigate(`/devices/${d.id}`)}
+  className="text-sky-400 hover:text-sky-300 font-semibold hover:underline cursor-pointer text-left"
+  >
+  {d.id}
+  </button>
+  </td>
+  <td className="px-5 py-4 text-slate-350">{d.type}</td>
+  <td className="px-5 py-4 text-right whitespace-nowrap">
+  <Badge variant={deviceStatusVariant(d.status)}>{d.status}</Badge>
+  </td>
+  </tr>
+  ))
+  ) : (
+  <tr>
+  <td colSpan={3} className="px-5 py-10 text-center text-slate-500 text-sm">
+  No devices found for {selectedRegion?.name || "this region"}
+  </td>
+  </tr>
+  )}
+  </tbody>
+  </table>
+  </div>
+  </CardBody>
+  </Card>
+  )}
+  </div>
 
  {/* Ticket Trends */}
  <Card className="glass-card">
@@ -1288,91 +1425,93 @@ export default function DashboardPage() {
  </Card>
 
  {/* Side-by-Side Distribution Charts */}
- <div className="grid gap-6 md:grid-cols-2">
- {/* Employee Role Distribution Area Chart */}
- <Card className="glass-card">
- <CardHeader
- title="Employee Role Distribution"
- subtitle="Personnel counts classified by role"
- />
- <CardBody>
- <div className="h-[280px]">
- <ResponsiveContainer width="100%" height="100%">
- <AreaChart data={employeeRoleData}>
- <defs>
- <linearGradient id="areaColor" x1="0" y1="0" x2="0" y2="1">
-   <stop offset="5%" stopColor="#c084fc" stopOpacity={0.4}/>
-   <stop offset="95%" stopColor="#9333ea" stopOpacity={0.05}/>
- </linearGradient>
- </defs>
- <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-stroke)" />
- <XAxis dataKey="name" stroke="var(--axis-stroke)" fontSize={11} />
- <YAxis stroke="var(--axis-stroke)" fontSize={11} />
- <Tooltip
- contentStyle={{
- background: "var(--tooltip-bg)",
- border: "1px solid var(--tooltip-border)",
- borderRadius: "0px",
- }}
- labelStyle={{ color: "var(--tooltip-text)" }}
- itemStyle={{ color: "var(--tooltip-text)" }}
- />
-   <Area type="monotone" dataKey="count" stroke="#c084fc" fillOpacity={1} fill="url(#areaColor)" name="Employees" />
- </AreaChart>
- </ResponsiveContainer>
- </div>
- </CardBody>
- </Card>
+  {!isTechnician && (
+  <div className="grid gap-6 md:grid-cols-2">
+  {/* Employee Role Distribution Area Chart */}
+  <Card className="glass-card">
+  <CardHeader
+  title="Employee Role Distribution"
+  subtitle="Personnel counts classified by role"
+  />
+  <CardBody>
+  <div className="h-[280px]">
+  <ResponsiveContainer width="100%" height="100%">
+  <AreaChart data={employeeRoleData}>
+  <defs>
+  <linearGradient id="areaColor" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="5%" stopColor="#c084fc" stopOpacity={0.4}/>
+    <stop offset="95%" stopColor="#9333ea" stopOpacity={0.05}/>
+  </linearGradient>
+  </defs>
+  <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-stroke)" />
+  <XAxis dataKey="name" stroke="var(--axis-stroke)" fontSize={11} />
+  <YAxis stroke="var(--axis-stroke)" fontSize={11} />
+  <Tooltip
+  contentStyle={{
+  background: "var(--tooltip-bg)",
+  border: "1px solid var(--tooltip-border)",
+  borderRadius: "0px",
+  }}
+  labelStyle={{ color: "var(--tooltip-text)" }}
+  itemStyle={{ color: "var(--tooltip-text)" }}
+  />
+    <Area type="monotone" dataKey="count" stroke="#c084fc" fillOpacity={1} fill="url(#areaColor)" name="Employees" />
+  </AreaChart>
+  </ResponsiveContainer>
+  </div>
+  </CardBody>
+  </Card>
 
- {/* Device Category Distribution Pie Chart */}
- <Card className="glass-card">
- <CardHeader
- title="Device Category Distribution"
- subtitle="IoT fleet split by device category"
- />
- <CardBody className="flex flex-col justify-between">
- <div className="h-[230px]">
- <ResponsiveContainer width="100%" height="100%">
- <PieChart>
- <Pie
- data={deviceCategoryData}
- cx="50%"
- cy="50%"
- innerRadius={60}
- outerRadius={85}
- paddingAngle={5}
- dataKey="value"
- >
- {deviceCategoryData.map((entry, index) => {
-   const COLORS = ["#9333ea", "#c084fc", "#a1a1aa", "#d8b4fe"];
-  return <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />;
- })}
- </Pie>
- <Tooltip
- contentStyle={{
- background: "var(--tooltip-bg)",
- border: "1px solid var(--tooltip-border)",
- borderRadius: "0px",
- }}
- itemStyle={{ color: "var(--tooltip-text)" }}
- />
- </PieChart>
- </ResponsiveContainer>
- </div>
- <div className="grid grid-cols-2 gap-2 mt-2 text-xs font-semibold">
- {deviceCategoryData.map((d, i) => {
-  const COLORS = ["bg-violet-400", "bg-violet-600", "bg-zinc-400", "bg-violet-300"];
- return (
- <div key={d.name} className="flex items-center gap-2 text-slate-350">
- <span className={`h-2.5 w-2.5 rounded-full ${COLORS[i % COLORS.length]}`} />
- <span className="truncate">{d.name}: {d.value}</span>
- </div>
- );
- })}
- </div>
- </CardBody>
- </Card>
- </div>
+  {/* Device Category Distribution Pie Chart */}
+  <Card className="glass-card">
+  <CardHeader
+  title="Device Category Distribution"
+  subtitle="IoT fleet split by device category"
+  />
+  <CardBody className="flex flex-col justify-between">
+  <div className="h-[230px]">
+  <ResponsiveContainer width="100%" height="100%">
+  <PieChart>
+  <Pie
+  data={deviceCategoryData}
+  cx="50%"
+  cy="50%"
+  innerRadius={60}
+  outerRadius={85}
+  paddingAngle={5}
+  dataKey="value"
+  >
+  {deviceCategoryData.map((entry, index) => {
+    const COLORS = ["#9333ea", "#c084fc", "#a1a1aa", "#d8b4fe"];
+   return <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />;
+  })}
+  </Pie>
+  <Tooltip
+  contentStyle={{
+  background: "var(--tooltip-bg)",
+  border: "1px solid var(--tooltip-border)",
+  borderRadius: "0px",
+  }}
+  itemStyle={{ color: "var(--tooltip-text)" }}
+  />
+  </PieChart>
+  </ResponsiveContainer>
+  </div>
+  <div className="grid grid-cols-2 gap-2 mt-2 text-xs font-semibold">
+  {deviceCategoryData.map((d, i) => {
+   const COLORS = ["bg-violet-400", "bg-violet-600", "bg-zinc-400", "bg-violet-300"];
+  return (
+  <div key={d.name} className="flex items-center gap-2 text-slate-350">
+  <span className={`h-2.5 w-2.5 rounded-full ${COLORS[i % COLORS.length]}`} />
+  <span className="truncate">{d.name}: {d.value}</span>
+  </div>
+  );
+  })}
+  </div>
+  </CardBody>
+  </Card>
+  </div>
+  )}
 
  {/* Technician Shifts & Punch Control */}
  {!isTechnician && (
@@ -1545,6 +1684,148 @@ export default function DashboardPage() {
     detail={detailModal}
   />
 
+  {/* Assignment Details Modal */}
+  {selectedAssignment && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setSelectedAssignment(null)} />
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-850 bg-slate-950/40 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${
+              selectedAssignment.type === "Device" ? "bg-sky-500/10 text-sky-400 border border-sky-500/20" : "bg-violet-500/10 text-violet-400 border border-violet-500/20"
+            }`}>
+              {selectedAssignment.type}
+            </span>
+            <h3 className="text-base font-bold text-slate-100">Assignment Details</h3>
+          </div>
+          <button onClick={() => setSelectedAssignment(null)} className="rounded-xl p-1 text-slate-400 hover:bg-slate-800 hover:text-white">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+            {isLoadingLinkedTicket ? (
+              <div className="text-center py-4 text-xs text-slate-400">Loading ticket details...</div>
+            ) : linkedTicket ? (
+              <>
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Ticket ID</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs font-mono font-semibold text-sky-400">{linkedTicket.id}</span>
+                    <button
+                      onClick={() => {
+                        setDetailsModalTicket(linkedTicket);
+                        setSelectedAssignment(null);
+                      }}
+                      className="text-xs text-sky-400 hover:text-sky-300 font-semibold hover:underline"
+                    >
+                      View Full Ticket Details
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 border-t border-slate-850 pt-2.5">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Assigned Person</span>
+                    <span className="text-xs font-semibold text-slate-200">{linkedTicket.technician || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Assignment Date</span>
+                    <span className="text-xs font-semibold text-slate-200">
+                      {linkedTicket.sentAt ? new Date(linkedTicket.sentAt).toLocaleString() : (linkedTicket.createdAt ? new Date(linkedTicket.createdAt).toLocaleString() : selectedAssignment.dateTime)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-850 pt-2.5">
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Device Name(s)</span>
+                  <div className="mt-1 space-y-1">
+                    {parsedHardware.devices.length > 0 ? (
+                      parsedHardware.devices.map((dev) => (
+                        <div key={dev.id} className="text-xs font-semibold text-slate-200">
+                          {dev.name} <span className="text-[10px] text-slate-500 font-mono">({dev.id})</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-550 italic">None assigned</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-850 pt-2.5">
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Component Name(s)</span>
+                  <div className="mt-1 space-y-1">
+                    {parsedHardware.components.length > 0 ? (
+                      parsedHardware.components.map((comp) => (
+                        <div key={comp.id} className="text-xs font-semibold text-slate-200 flex justify-between">
+                          <span>{comp.name}</span>
+                          <span className="text-xs text-slate-400 font-medium">Qty: {comp.qty}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-550 italic">None assigned</span>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-bold">Item Name</span>
+                  <span className="text-sm font-semibold text-slate-100">{selectedAssignment.name}</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 border-t border-slate-850 pt-2.5">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Quantity</span>
+                    <span className="text-xs font-semibold text-slate-200">{selectedAssignment.quantity}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Status</span>
+                    <span className="text-xs font-semibold text-slate-200">{selectedAssignment.status}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 border-t border-slate-850 pt-2.5">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Assigned Person</span>
+                    <span className="text-xs font-semibold text-slate-200">{selectedAssignment.person}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Assigned Date</span>
+                    <span className="text-xs font-semibold text-slate-200">{selectedAssignment.dateTime}</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-850 pt-2.5">
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Ticket ID</span>
+                  <span className="text-xs font-mono font-semibold text-sky-400 block mt-1">{selectedAssignment.ticketId}</span>
+                </div>
+              </>
+            )}
+
+            {selectedAssignment.original.reason && (
+              <div className="border-t border-slate-850 pt-2.5">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Reason / Remarks</span>
+                <span className="text-xs text-slate-350 leading-relaxed block mt-0.5">{selectedAssignment.original.reason}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-slate-850 bg-slate-950/20 px-6 py-4">
+          <button
+            onClick={() => setSelectedAssignment(null)}
+            className="w-full rounded-2xl border border-slate-800 bg-slate-950 py-2.5 text-xs font-semibold text-slate-350 hover:bg-slate-900 hover:text-white"
+          >
+            Close Details
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
   <TicketDetailsModal
     open={Boolean(detailsModalTicket)}
     ticket={
@@ -1559,6 +1840,7 @@ export default function DashboardPage() {
     onSend={handleSend}
     onStartTravel={(id) => handleUpdateStatus(id, "TRAVELLING")}
     onComplete={handleComplete}
+    onUpdateStatus={handleUpdateStatus}
   />
 
 </div>

@@ -8,12 +8,7 @@ export function nextDeviceId(devices) {
 }
 
 export function buildDeviceHealthStats(devices) {
-  const count = (status) =>
-    devices.filter((d) =>
-      status === "Maintenance"
-        ? d.status === "Maintenance Required"
-        : d.status === status
-    ).length;
+  const count = (status) => devices.filter((d) => d.status === status).length;
 
   return [
     { label: "Total", value: devices.length, tone: "indigo" },
@@ -21,7 +16,5 @@ export function buildDeviceHealthStats(devices) {
     { label: "Online", value: count("Online"), tone: "emerald" },
     { label: "Offline", value: count("Offline"), tone: "slate" },
     { label: "Warning", value: count("Warning"), tone: "amber" },
-    { label: "Critical", value: count("Critical"), tone: "rose" },
-    { label: "Maintenance", value: count("Maintenance"), tone: "sky" },
   ];
 }

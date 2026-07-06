@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { X, Check, CheckCircle, Send, Clock, User, AlertCircle, MapPin, ClipboardList } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { X, Check, CheckCircle, Send, Clock, User, AlertCircle, AlertTriangle, MapPin, ClipboardList, Phone, Headphones, Package, Play } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../utils/api";
 import DeviceDetailsModal from "../devices/DeviceDetailsModal";
@@ -21,9 +21,46 @@ const parseDevicesString = (siteStr) => {
   }).filter(d => d.name);
 };
 
+const parseReassignedDevicesAndComponents = (ticket) => {
+  if (!ticket) return { devices: [], components: [] };
+  const deviceIdStr = String(ticket.deviceId || "").trim();
+  const deviceNameStr = String(ticket.deviceName || "").trim();
+  if (!deviceIdStr) return { devices: [], components: [] };
+  
+  const ids = deviceIdStr.split(",").map(id => id.trim()).filter(Boolean);
+  const names = deviceNameStr.split(",").map(n => n.trim()).filter(Boolean);
+  
+  const parsedDevices = [];
+  const parsedComponents = [];
+  
+  ids.forEach((id, idx) => {
+    const name = names[idx] || names[0] || "Unknown";
+    const nameStr = String(name);
+    if (id.startsWith("COMP-")) {
+      const qtyMatch = id.match(/\((\d+)\)/);
+      const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+      const cleanId = id.replace(/\s*\(\d+\)/, "");
+      parsedComponents.push({
+        id: cleanId,
+        name: nameStr.replace(/\s*\(x\d+\)/, ""),
+        qty
+      });
+    } else {
+      parsedDevices.push({
+        id,
+        name: nameStr
+      });
+    }
+  });
+  
+  return { devices: parsedDevices, components: parsedComponents };
+};
+
 const getGroupedDevices = (ticket) => {
   if (!ticket) return [];
-  if (!ticket.deviceId) {
+  const deviceIdStr = String(ticket.deviceId || "").trim();
+  const deviceNameStr = String(ticket.deviceName || "").trim();
+  if (!deviceIdStr) {
     const legacy = parseDevicesString(ticket.site);
     if (legacy.length > 0) {
       const DEVICE_NAMES = ["Ace", "Mini", "Fastscan", "Go"];
@@ -32,9 +69,9 @@ const getGroupedDevices = (ticket) => {
         return legacy.map(d => ({ ...d, ids: "—" }));
       }
     }
-    if (ticket.deviceName) {
+    if (deviceNameStr) {
       return [{
-        name: ticket.deviceName,
+        name: deviceNameStr,
         count: 1,
         ids: "—"
       }];
@@ -42,8 +79,8 @@ const getGroupedDevices = (ticket) => {
     return [];
   }
 
-  const ids = ticket.deviceId.split(",").map(id => id.trim()).filter(Boolean);
-  const names = ticket.deviceName ? ticket.deviceName.split(",").map(n => n.trim()).filter(Boolean) : [];
+  const ids = deviceIdStr.split(",").map(id => id.trim()).filter(Boolean);
+  const names = deviceNameStr.split(",").map(n => n.trim()).filter(Boolean);
 
   const groups = {};
   ids.forEach((id, idx) => {
@@ -65,7 +102,7 @@ function PriorityBadge({ priority }) {
   const styles = {
     HIGH: "bg-orange-500/90 text-white",
     CRITICAL: "bg-red-600 text-white",
-    MEDIUM: "bg-amber-500/90 text-zinc-950",
+    MEDIUM: "bg-amber-500/90 text-white",
     LOW: "bg-emerald-600 text-white",
   };
   return (
@@ -142,6 +179,13 @@ const formatLogDate = (dateStr) => {
 const formatLogEvent = (log) => {
   const action = (log.action || "").toUpperCase();
   const desc = log.description || "";
+
+  if (desc.startsWith("Mark as Completed by")) {
+    return desc.split("\n")[0];
+  }
+  if (action === "TECH_SUPPORT_IN_PROGRESS") {
+    return "Tech Support Started";
+  }
 
   if (action === "REASSIGNED") {
     const match = desc.match(/to\s+([^by\n]+?)(?:\s+by|$)/i);
@@ -253,6 +297,8 @@ export default function TicketDetailsModal({
   onSend,
   onStartTravel,
   onComplete,
+  onEscalate,
+  onUpdateStatus,
 }) {
   const { hasPermission } = useAuth();
   const [logs, setLogs] = useState([]);
@@ -296,17 +342,28 @@ export default function TicketDetailsModal({
     }
   }, [open, ticket?.id]);
 
+  const { devices: reassignedDevs, components: reassignedComps } = useMemo(() => {
+    return parseReassignedDevicesAndComponents(ticket);
+  }, [ticket]);
+
   if (!open || !ticket) return null;
 
+  const isTechSupportEscalated = ticket.escalationType === "TECH_SUPPORT" || ticket.escalatedToRole === "TECH_SUPPORT";
+  const isTechSupportUser = currentUser?.role === "Tech Support" && ticket.status === "ESCALATED" && isTechSupportEscalated;
   const isAssignedTech = ticket.technician === currentUser?.name && (currentUser?.role === "Field Technician" || currentUser?.role === "Technician");
+  const isAuthorizedToComplete = isAssignedTech || isTechSupportUser;
   const shouldShowCheckbox = (
-    (isAssignedTech && ticket.status === "REVIEWED") || 
+    (isAuthorizedToComplete && (
+      ticket.status === "REVIEWED" ||
+      (ticket.status === "PENDING" && ticket.escalationType === "WAREHOUSE") ||
+      (ticket.status === "ESCALATED" && isTechSupportEscalated)
+    )) || 
     ticket.status === "COMPLETED"
   ) && ticket.status !== "REJECTED";
   const groupedDevices = getGroupedDevices(ticket);
 
   const handleCheckboxChange = async (e) => {
-    if (!isAssignedTech) return;
+    if (!isAuthorizedToComplete) return;
     if (e.target.checked) {
       try {
         await onComplete(ticket.id);
@@ -474,7 +531,7 @@ export default function TicketDetailsModal({
                 Completed Date
               </span>
               <span className="mt-1 block font-mono text-xs font-medium text-slate-300">
-                {ticket.completedAt && ticket.status === "COMPLETED" ? (
+                {ticket.completedAt && (ticket.status === "COMPLETED" || ticket.status === "TECH_SUPPORT_COMPLETED") ? (
                   formatTicketDateTime(ticket.completedAt)
                 ) : ticket.status === "COMPLETED" ? (
                   formatTicketDateTime(
@@ -483,6 +540,18 @@ export default function TicketDetailsModal({
                     ).toISOString()
                   )
                 ) : (
+                  <span className="text-slate-500">—</span>
+                )}
+              </span>
+            </div>
+
+            {/* Completed By */}
+            <div>
+              <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Completed By
+              </span>
+              <span className="mt-1 block text-xs font-medium text-slate-300">
+                {ticket.completedBy || ticket.completedByUserId || (
                   <span className="text-slate-500">—</span>
                 )}
               </span>
@@ -504,55 +573,99 @@ export default function TicketDetailsModal({
             )}
 
             {/* Devices Section in Table Format */}
-            {groupedDevices.length > 0 && (
-              <div>
-                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                  <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
-                  Devices
-                </span>
-                <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/30">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-800 bg-slate-900/40">
-                        <th className="px-4 py-2 font-semibold text-slate-400">Device Name</th>
-                        <th className="px-4 py-2 font-semibold text-slate-400 text-center">
-                          {ticket.jobType === "deployments" ? "Number of Devices" : "Quantity"}
-                        </th>
-                        {ticket.jobType !== "deployments" && (
-                          <th className="px-4 py-2 font-semibold text-slate-400 text-right">Device ID(s)</th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/40">
-                      {groupedDevices.map((d, idx) => (
-                        <tr key={idx} className="hover:bg-slate-900/20">
-                          <td className="px-4 py-2.5 font-medium text-slate-200">{d.name}</td>
-                          <td className="px-4 py-2.5 text-center font-mono text-slate-300 font-semibold">{d.count}</td>
+            {reassignedDevs.length > 0 || reassignedComps.length > 0 ? (
+              <div className="space-y-4">
+                {reassignedDevs.length > 0 && (
+                  <div>
+                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                      <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
+                      Selected Devices
+                    </span>
+                    <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/30 divide-y divide-slate-800/40 p-3 space-y-2">
+                      {reassignedDevs.map((d, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-xs text-slate-350 first:pt-0 pt-2 bg-slate-900/10 hover:bg-slate-900/20">
+                          <span className="font-semibold text-slate-200">{d.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeviceIdClick(d.id)}
+                            className="font-mono text-sky-400 hover:text-sky-300 hover:underline cursor-pointer font-bold"
+                          >
+                            {d.id}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {reassignedComps.length > 0 && (
+                  <div>
+                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                      <Package className="h-3.5 w-3.5 text-slate-400" />
+                      Selected Components
+                    </span>
+                    <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/30 divide-y divide-slate-800/40 p-3 space-y-2">
+                      {reassignedComps.map((c, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-xs text-slate-350 first:pt-0 pt-2">
+                          <span className="font-semibold text-slate-200">{c.name}</span>
+                          <span className="text-sky-400 font-mono font-bold">Qty: {c.qty}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              groupedDevices.length > 0 && (
+                <div>
+                  <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                    <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
+                    Devices
+                  </span>
+                  <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/30">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 bg-slate-900/40">
+                          <th className="px-4 py-2 font-semibold text-slate-400">Device Name</th>
+                          <th className="px-4 py-2 font-semibold text-slate-400 text-center">
+                            {ticket.jobType === "deployments" ? "Number of Devices" : "Quantity"}
+                          </th>
                           {ticket.jobType !== "deployments" && (
-                            <td className="px-4 py-2.5 text-right font-mono text-slate-300 font-semibold">
-                              {d.ids ? d.ids.split(",").map((id, index, array) => {
-                                const cleanId = id.trim();
-                                return (
-                                  <span key={cleanId}>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeviceIdClick(cleanId)}
-                                      className="text-sky-400 hover:text-sky-300 hover:underline cursor-pointer font-bold inline-block"
-                                    >
-                                      {cleanId}
-                                    </button>
-                                    {index < array.length - 1 && <span className="text-slate-400">, </span>}
-                                  </span>
-                                );
-                              }) : "—"}
-                            </td>
+                            <th className="px-4 py-2 font-semibold text-slate-400 text-right">Device ID(s)</th>
                           )}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/40">
+                        {groupedDevices.map((d, idx) => (
+                          <tr key={idx} className="hover:bg-slate-900/20">
+                            <td className="px-4 py-2.5 font-medium text-slate-200">{d.name}</td>
+                            <td className="px-4 py-2.5 text-center font-mono text-slate-300 font-semibold">{d.count}</td>
+                            {ticket.jobType !== "deployments" && (
+                              <td className="px-4 py-2.5 text-right font-mono text-slate-300 font-semibold">
+                                {d.ids ? d.ids.split(",").map((id, index, array) => {
+                                  const cleanId = id.trim();
+                                  return (
+                                    <span key={cleanId}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeviceIdClick(cleanId)}
+                                        className="text-sky-400 hover:text-sky-300 hover:underline cursor-pointer font-bold inline-block"
+                                      >
+                                        {cleanId}
+                                      </button>
+                                      {index < array.length - 1 && <span className="text-slate-400">, </span>}
+                                    </span>
+                                  );
+                                }) : "—"}
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )
             )}
 
             {ticket.issue && (
@@ -578,11 +691,51 @@ export default function TicketDetailsModal({
               </div>
             )}
 
+            {ticket.status === "ESCALATED" && ticket.escalatedReason && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3.5 py-3 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-amber-400">
+                  Escalation Reason
+                </span>
+                <span className="mt-1 block text-sm text-amber-300 font-medium">
+                  {ticket.escalatedReason}
+                </span>
+                <div className="flex justify-between text-[10px] text-slate-500 pt-1.5 border-t border-slate-850">
+                  <span>Escalated by: {ticket.escalatedBy || "Technician"}</span>
+                  {ticket.escalatedAt && (
+                    <span>{new Date(ticket.escalatedAt).toLocaleString()}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {ticket.status === "ESCALATED" && isTechSupportEscalated && (
+              <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sky-400">
+                  <Phone className="h-4 w-4" />
+                  <span className="font-semibold text-xs uppercase tracking-wider">Tech Support Details</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Contact Name</span>
+                    <span className="text-slate-200 font-medium">Aarav Mehta</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Phone Number</span>
+                    <span className="text-sky-300 font-mono font-medium">+91 98765 43100</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-slate-500 block">Support Desk</span>
+                    <span className="text-slate-200 font-medium">IoT & Hardware Diagnostics (24/7 Desk)</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Completed Checkbox */}
             {shouldShowCheckbox && (
               <div className="rounded-xl border border-slate-800 bg-slate-950/20 p-4">
                 <div className="flex items-center gap-3">
-                  {isAssignedTech ? (
+                  {isAuthorizedToComplete ? (
                     <label className="flex items-center gap-3 cursor-pointer text-slate-200 w-full">
                       <input
                         type="checkbox"
@@ -749,16 +902,101 @@ export default function TicketDetailsModal({
                 Start Travel
               </button>
             )}
-
             {ticket.status === "TRAVELLING" && isAssignedTech && hasPermission("tickets.update") && (
               <span className="text-sm text-slate-400 italic py-1">
                 Please complete travel updates from the ticket list actions.
               </span>
             )}
 
-            {["COMPLETED", "ESCALATED", "REJECTED"].includes(ticket.status) && (
+            {ticket.status === "ESCALATED" && isTechSupportEscalated && currentUser?.role === "Tech Support" && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (onUpdateStatus) {
+                    await onUpdateStatus(ticket.id, "TECH_SUPPORT_IN_PROGRESS");
+                    fetchLogs();
+                  }
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 shadow-lg shadow-sky-600/20"
+              >
+                <Play className="h-4 w-4" />
+                Start
+              </button>
+            )}
+
+            {ticket.status === "TECH_SUPPORT_IN_PROGRESS" && currentUser?.role === "Tech Support" && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (onUpdateStatus) {
+                    await onUpdateStatus(ticket.id, "TECH_SUPPORT_COMPLETED");
+                    fetchLogs();
+                  }
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
+              >
+                <Check className="h-4 w-4" />
+                Mark as Completed
+              </button>
+            )}
+
+            {(ticket.status === "REVIEWED" || ticket.status === "TECH_SUPPORT_COMPLETED") && isAssignedTech && hasPermission("tickets.update") && (
+              <>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await onComplete(ticket.id);
+                    fetchLogs();
+                  }}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
+                >
+                  <Check className="h-4 w-4" />
+                  Complete Ticket
+                </button>
+                {ticket.status === "REVIEWED" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onEscalate(ticket);
+                    }}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 shadow-lg shadow-amber-600/20"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    Escalate Ticket
+                  </button>
+                )}
+              </>
+            )}
+
+            {ticket.status === "ESCALATED" && (currentUser?.role === "Super Admin" || currentUser?.role === "Warehouse Manager") && (hasPermission("tickets.assign") || hasPermission("tickets.update")) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSend(ticket);
+                  onClose();
+                }}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 shadow-lg shadow-sky-600/20"
+              >
+                <Send className="h-4 w-4" />
+                Resend / Reassign Ticket
+              </button>
+            )}
+
+            {["COMPLETED", "REJECTED"].includes(ticket.status) && (
               <span className="text-sm text-slate-400 italic py-1">
                 No active actions available for this ticket state.
+              </span>
+            )}
+
+            {ticket.status === "ESCALATED" && !(currentUser?.role === "Super Admin" || currentUser?.role === "Warehouse Manager" || currentUser?.role === "Tech Support") && (
+              <span className="text-sm text-slate-400 italic py-1">
+                Ticket escalated. Awaiting reassignment by Warehouse Manager / Super Admin.
+              </span>
+            )}
+
+            {(ticket.status === "TECH_SUPPORT_IN_PROGRESS" || ticket.status === "TECH_SUPPORT_COMPLETED") && currentUser?.role !== "Tech Support" && !isAssignedTech && (
+              <span className="text-sm text-slate-400 italic py-1">
+                Ticket is being handled by Tech Support.
               </span>
             )}
 

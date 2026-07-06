@@ -77,9 +77,7 @@ export function AttendanceProvider({ children }) {
       const isManagerRole =
         user.role === "Super Admin" ||
         user.role === "Operational Manager" ||
-        user.role === "Admin" ||
-        user.role === "Scheme PC" ||
-        user.role === "Scheme Admin";
+        user.role === "Warehouse Manager";
       if (!isManagerRole) {
         // Technicians/Field Workers: select their own record
         setSelectedId(user.id);

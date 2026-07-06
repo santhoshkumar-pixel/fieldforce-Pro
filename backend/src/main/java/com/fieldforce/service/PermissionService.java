@@ -117,6 +117,7 @@ public class PermissionService {
             "Warehouse Manager".equalsIgnoreCase(finalRole) ||
             "Warehouse".equalsIgnoreCase(finalRole) ||
             "Technical Support".equalsIgnoreCase(finalRole) ||
+            "Tech Support".equalsIgnoreCase(finalRole) ||
             "Product Management".equalsIgnoreCase(finalRole)) {
             return true;
         }

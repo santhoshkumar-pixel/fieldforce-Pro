@@ -8,6 +8,7 @@ import { permissionModules } from "../data/mockData";
 import { useAuth } from "../context/AuthContext";
 import { getUserPlace } from "../utils/roleHelpers";
 import { api } from "../utils/api";
+import CustomSelect from "../components/ui/CustomSelect";
 
 export default function RbacPage() {
  const { user, updateUser, isSuperAdmin } = useAuth();
@@ -161,6 +162,37 @@ export default function RbacPage() {
  const [soundNotifications, setSoundNotifications] = useState(true);
  const [desktopAlerts, setDesktopAlerts] = useState(true);
  const [successMessage, setSuccessMessage] = useState("");
+
+ const zoneOptions = useMemo(() => {
+    const opts = [];
+    if (!userPlace) {
+      opts.push(
+        { label: "Goa Operations", isHeader: true },
+        { value: "Goa", label: "All Goa (Default)" },
+        { value: "North Goa", label: "North Goa Division" },
+        { value: "Central Goa", label: "Central Goa Division" },
+        { value: "South Goa", label: "South Goa Division" },
+        { label: "Bhutan Operations", isHeader: true },
+        { value: "Bhutan", label: "All Bhutan" },
+        { value: "Thimphu", label: "Thimphu Division" },
+        { value: "Paro", label: "Paro Division" }
+      );
+    } else if (userPlace === "Bhutan") {
+      opts.push(
+        { value: "Bhutan", label: "All Bhutan" },
+        { value: "Thimphu", label: "Thimphu Division" },
+        { value: "Paro", label: "Paro Division" }
+      );
+    } else {
+      opts.push(
+        { value: "Goa", label: "All Goa (Default)" },
+        { value: "North Goa", label: "North Goa Division" },
+        { value: "Central Goa", label: "Central Goa Division" },
+        { value: "South Goa", label: "South Goa Division" }
+      );
+    }
+    return opts;
+  }, [userPlace]);
 
  const handleApplyChanges = () => {
  updateUser({ zone: operationalZone });
@@ -421,40 +453,14 @@ export default function RbacPage() {
  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
  Operational Division
  </label>
- <select
- value={operationalZone}
- onChange={(e) => setOperationalZone(e.target.value)}
- className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500 text-sm cursor-pointer"
- >
- {!userPlace ? (
- <>
- <optgroup label="Goa Operations">
- <option value="Goa">All Goa (Default)</option>
- <option value="North Goa">North Goa Division</option>
- <option value="Central Goa">Central Goa Division</option>
- <option value="South Goa">South Goa Division</option>
- </optgroup>
- <optgroup label="Bhutan Operations">
- <option value="Bhutan">All Bhutan</option>
- <option value="Thimphu">Thimphu Division</option>
- <option value="Paro">Paro Division</option>
- </optgroup>
- </>
- ) : userPlace === "Bhutan" ? (
- <>
- <option value="Bhutan">All Bhutan</option>
- <option value="Thimphu">Thimphu Division</option>
- <option value="Paro">Paro Division</option>
- </>
- ) : (
- <>
- <option value="Goa">All Goa (Default)</option>
- <option value="North Goa">North Goa Division</option>
- <option value="Central Goa">Central Goa Division</option>
- <option value="South Goa">South Goa Division</option>
- </>
- )}
- </select>
+  <CustomSelect
+    value={operationalZone}
+    onChange={(e) => setOperationalZone(e.target.value)}
+    options={zoneOptions}
+    fullWidth
+    containerClassName="w-full max-w-md"
+    className="w-full max-w-md rounded-xl py-2.5 px-3.5 text-sm text-slate-200 border-slate-800 bg-slate-950 focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30"
+  />
  <span className="block text-[11px] text-slate-500">
  Changes the default telemetry context scope mapped on initial logins.
  </span>

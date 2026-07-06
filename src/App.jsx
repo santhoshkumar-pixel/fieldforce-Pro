@@ -15,7 +15,8 @@ import SlaPage from "./pages/SlaPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import AttendancePage from "./pages/AttendancePage";
-import InventoryPage from "./pages/InventoryPage";
+import InventoryPage from './pages/InventoryPage';
+import ComponentHistoryPage from './pages/ComponentHistoryPage';
 import TrainingPage from "./pages/TrainingPage";
 import TrainingViewerPage from "./pages/TrainingViewerPage";
 import QuizPage from "./pages/QuizPage";
@@ -60,6 +61,7 @@ export default function App() {
  <Route path="analytics" element={<AnalyticsPage />} />
  <Route path="notifications" element={<NotificationsPage />} />
  <Route path="inventory" element={<InventoryPage />} />
+          <Route path="inventory/component-history/:id" element={<ComponentHistoryPage />} />
  <Route path="training" element={<TrainingPage />} />
  <Route path="training/material/:materialId" element={<TrainingViewerPage />} />
  <Route path="training/quiz/:quizId" element={<QuizPage />} />
@@ -69,3 +71,4 @@ export default function App() {
  </Routes>
  );
 }
+

@@ -20,8 +20,22 @@ public class SlaService {
 
     private List<Ticket> getFilteredTickets(String roleHeader, String zoneHeader) {
         List<Ticket> all = ticketRepository.findAll();
-        // Dynamically update SLA statuses on fetch to capture current OVERDUE states
-        all.forEach(Ticket::updateSlaStatuses);
+        // Dynamically update and persist SLA statuses on fetch to capture current OVERDUE states in the DB
+        for (Ticket t : all) {
+            String oldAck = t.getAckSlaStatus();
+            String oldResp = t.getResponseSlaStatus();
+            String oldRes = t.getResolutionSlaStatus();
+            Boolean oldOverdue = t.getSlaOverdue();
+            
+            t.updateSlaStatuses();
+            
+            if (!Objects.equals(oldAck, t.getAckSlaStatus()) ||
+                !Objects.equals(oldResp, t.getResponseSlaStatus()) ||
+                !Objects.equals(oldRes, t.getResolutionSlaStatus()) ||
+                !Objects.equals(oldOverdue, t.getSlaOverdue())) {
+                ticketRepository.save(t);
+            }
+        }
         
         if (zoneHeader != null && !zoneHeader.isEmpty()) {
             return all.stream()

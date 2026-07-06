@@ -6,6 +6,7 @@ export const unrestrictedRoles = [
   "Warehouse",
   "Technical Support",
   "Product Management",
+  "Tech Support",
 ];
 
 export function getZoneRegion(zone) {
@@ -36,6 +37,7 @@ export function getUserPlace(user) {
     "Warehouse",
     "Technical Support",
     "Product Management",
+    "Tech Support",
   ];
   if (globallyUnrestricted.includes(user.role)) return null;
 
@@ -53,6 +55,7 @@ export function hasRegionAccess(user, itemZone) {
     "Warehouse",
     "Technical Support",
     "Product Management",
+    "Tech Support",
   ];
   if (globallyUnrestricted.includes(user.role)) return true;
 

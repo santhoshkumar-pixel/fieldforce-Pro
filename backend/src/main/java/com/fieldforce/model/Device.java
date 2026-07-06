@@ -45,6 +45,27 @@ public class Device implements RegionBound {
     @Column(name = "drop_date", length = 50)
     private String dropDate;
 
+    @Column(name = "purchase_date", length = 50)
+    private String purchaseDate;
+
+    @Column(name = "warranty_expiry_date", length = 50)
+    private String warrantyExpiryDate;
+
+    @Column(name = "assigned_to_type", length = 50)
+    private String assignedToType;
+
+    @Column(name = "assigned_to_id", length = 50)
+    private String assignedToId;
+
+    @Column(name = "assigned_to_name", length = 100)
+    private String assignedToName;
+
+    @Column(name = "assignment_date", length = 50)
+    private String assignmentDate;
+
+    @Column(name = "return_date", length = 50)
+    private String returnDate;
+
     // Constructors
     public Device() {}
 
@@ -101,6 +122,27 @@ public class Device implements RegionBound {
 
     public String getDropDate() { return dropDate; }
     public void setDropDate(String dropDate) { this.dropDate = dropDate; }
+
+    public String getPurchaseDate() { return purchaseDate; }
+    public void setPurchaseDate(String purchaseDate) { this.purchaseDate = purchaseDate; }
+
+    public String getWarrantyExpiryDate() { return warrantyExpiryDate; }
+    public void setWarrantyExpiryDate(String warrantyExpiryDate) { this.warrantyExpiryDate = warrantyExpiryDate; }
+
+    public String getAssignedToType() { return assignedToType; }
+    public void setAssignedToType(String assignedToType) { this.assignedToType = assignedToType; }
+
+    public String getAssignedToId() { return assignedToId; }
+    public void setAssignedToId(String assignedToId) { this.assignedToId = assignedToId; }
+
+    public String getAssignedToName() { return assignedToName; }
+    public void setAssignedToName(String assignedToName) { this.assignedToName = assignedToName; }
+
+    public String getAssignmentDate() { return assignmentDate; }
+    public void setAssignmentDate(String assignmentDate) { this.assignmentDate = assignmentDate; }
+
+    public String getReturnDate() { return returnDate; }
+    public void setReturnDate(String returnDate) { this.returnDate = returnDate; }
 
     @Override
     public String getZone() {

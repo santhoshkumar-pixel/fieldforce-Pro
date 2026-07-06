@@ -58,7 +58,29 @@ export default function NotificationsPage() {
  {notifications.map((n) => {
  const config = typeConfig[n.type] || typeConfig.info;
  const Icon = config.icon;
- const hasMedia = Boolean(getNotifMedia(n.id));
+
+  // 1. Try to get the actual uploaded image globally from the backend database first
+  let mediaObj = null;
+  if (n.mediaDataUrl) {
+    mediaObj = {
+      mediaType: n.mediaType || "image",
+      dataUrl: n.mediaDataUrl
+    };
+  } else {
+    // 2. Try to get it from local storage (for legacy or offline notifications)
+    mediaObj = getNotifMedia(n.id);
+  }
+
+  // 3. Fallback: If no real data exists but the text mentions an attachment, show the mock image
+  if (!mediaObj && n.title && n.title.includes("Attachment: ")) {
+    mediaObj = {
+      mediaType: "image",
+      dataUrl: "/mock_attachment.png"
+    };
+  }
+
+ const hasMedia = Boolean(mediaObj);
+
  return (
  <div
  key={n.id}
@@ -87,7 +109,7 @@ export default function NotificationsPage() {
  type="button"
  onClick={(e) => {
  e.stopPropagation();
- setSelectedMedia(getNotifMedia(n.id));
+ setSelectedMedia(mediaObj);
  }}
  className="shrink-0 rounded-xl bg-sky-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-500 shadow-md hover:shadow-sky-500/20"
  >

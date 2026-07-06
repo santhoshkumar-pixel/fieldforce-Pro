@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -15,13 +16,16 @@ import {
   BarChart2,
   AlertCircle,
   CheckCircle2,
+  UserCheck,
+  Calendar
 } from "lucide-react";
 import Badge, { deviceStatusVariant } from "../components/ui/Badge";
 import { useDevice } from "../context/DeviceContext";
+import { api } from "../utils/api";
 
 function MetaItem({ label, value, icon: Icon, accent }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 flex flex-col gap-1.5">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 flex flex-col gap-1.5 shadow-sm hover:border-slate-700 transition-all">
       <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
         {Icon && <Icon className={`h-3.5 w-3.5 ${accent || "text-slate-400"}`} />}
         {label}
@@ -60,7 +64,27 @@ export default function DeviceDetailPage() {
   const navigate = useNavigate();
   const { devices, loading } = useDevice();
 
+  const [assignmentHistory, setAssignmentHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const device = devices.find((d) => d.id === deviceId);
+
+  useEffect(() => {
+    if (deviceId) {
+      const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+          const data = await api.devices.getDeviceAssignments(deviceId);
+          setAssignmentHistory(data || []);
+        } catch (err) {
+          console.error("Failed to load device assignments history:", err);
+        } finally {
+          setLoadingHistory(false);
+        }
+      };
+      fetchHistory();
+    }
+  }, [deviceId]);
 
   if (loading) {
     return (
@@ -90,13 +114,13 @@ export default function DeviceDetailPage() {
     );
   }
 
-  const isOnline = device.status === "Online";
-  const isCritical = device.status === "Critical";
-  const isOffline = device.status === "Offline";
+  const isOnline = device.status === "Available" || device.status === "Online";
+  const isCritical = device.status === "Damaged";
+  const isOffline = device.status === "Lost" || device.status === "Offline";
 
-  const signalStrength =
-    isOffline ? 0 : device.connectivity === "LTE" ? 87 : 72;
+  const signalStrength = isOffline ? 0 : device.connectivity === "LTE" ? 87 : 72;
   const batteryLevel = device.battery ?? 85;
+  const linkedTicketId = device.ticketId || assignmentHistory.find((entry) => entry.status === "ACTIVE")?.ticketId || null;
   const cpuLoad = isOffline ? 0 : isCritical ? 92 : 34;
   const memoryUsage = isOffline ? 0 : isCritical ? 88 : 41;
   const packetLoss = isOffline ? 100 : isCritical ? 5 : 0;
@@ -114,7 +138,7 @@ export default function DeviceDetailPage() {
       <div className="flex items-center gap-4">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/60 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-all"
+          className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/60 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-all cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -129,7 +153,16 @@ export default function DeviceDetailPage() {
           </p>
         </div>
         <div className="ml-auto">
-          <Badge variant={deviceStatusVariant(device.status)} className="text-sm px-3 py-1">
+          <Badge 
+            variant={
+              device.status === "Available" || device.status === "Online"
+                ? "success"
+                : device.status === "Assigned"
+                ? "info"
+                : "danger"
+            } 
+            className="text-sm px-3 py-1"
+          >
             {device.status}
           </Badge>
         </div>
@@ -183,7 +216,7 @@ export default function DeviceDetailPage() {
               {device.lastSync && (
                 <span className="flex items-center gap-1.5 text-sm text-slate-400">
                   <Clock className="h-3.5 w-3.5 text-slate-500" />
-                  Last seen: {device.lastSync}
+                  Last sync: {device.lastSync}
                 </span>
               )}
             </div>
@@ -209,17 +242,16 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      {/* Critical Alert Banner */}
+      {/* Damaged Alert Banner */}
       {isCritical && (
         <div className="flex items-start gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/5 px-5 py-4">
           <ShieldAlert className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-bold text-rose-400 uppercase tracking-wide">
-              Critical Alert
+              Device Service Alert
             </p>
             <p className="text-sm text-rose-300 mt-0.5">
-              This unit has breached temperature thresholds or report rate cycles. Field dispatch
-              advised. Immediate inspection required.
+              This unit has been logged as Damaged or breached temperature thresholds. Servicing has been requested or immediate inspection is advised.
             </p>
           </div>
         </div>
@@ -228,48 +260,29 @@ export default function DeviceDetailPage() {
       {/* Metadata Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <MetaItem label="Device ID" value={device.id} icon={Cpu} accent="text-sky-400" />
-        <MetaItem label="Device Type" value={device.type} icon={Radio} accent="text-violet-400" />
+        <MetaItem label="Device Model" value={device.type} icon={Radio} accent="text-violet-400" />
         <MetaItem label="Firmware" value={device.firmware} icon={Settings2} accent="text-amber-400" />
-        <MetaItem
-          label="Connectivity"
-          value={device.connectivity}
-          icon={Wifi}
-          accent="text-sky-400"
+        <MetaItem label="Connectivity" value={device.connectivity} icon={Wifi} accent="text-sky-400" />
+        
+        <MetaItem label="Purchase Date" value={device.purchaseDate} icon={Calendar} accent="text-indigo-400" />
+        <MetaItem label="Warranty Expiry" value={device.warrantyExpiryDate} icon={Calendar} accent="text-emerald-400" />
+        <MetaItem 
+          label="Current Holder" 
+          value={device.assignedToName ? `${device.assignedToName} (${device.assignedToType})` : "Unassigned"} 
+          icon={UserCheck} 
+          accent="text-sky-400" 
         />
-        <MetaItem
-          label="Deployment Site"
-          value={device.site || "Not Deployed"}
-          icon={MapPin}
-          accent="text-emerald-400"
+        <MetaItem 
+          label="Assignment Date" 
+          value={device.assignmentDate || "Not Assigned"} 
+          icon={Clock} 
+          accent="text-slate-400" 
         />
-        <MetaItem
-          label="Battery Level"
-          value={device.battery ? `${device.battery}%` : "—"}
-          icon={Battery}
-          accent={batteryLevel > 20 ? "text-emerald-400" : "text-rose-400"}
-        />
-        <MetaItem label="Last Heartbeat" value={device.lastSync} icon={Clock} accent="text-slate-400" />
-        <MetaItem
-          label="Duration"
-          value={
-            device.statusDurationDays != null
-              ? `${device.statusDurationDays} Days`
-              : "—"
-          }
-          icon={Activity}
-          accent="text-teal-400"
-        />
-        <MetaItem
-          label="Pick Date"
-          value={device.pickDate}
-          icon={Clock}
-          accent="text-emerald-400"
-        />
-        <MetaItem
-          label="Drop Date"
-          value={device.dropDate}
-          icon={Clock}
-          accent="text-rose-400"
+        <MetaItem 
+          label="Linked Ticket" 
+          value={linkedTicketId || "Not linked"} 
+          icon={Activity} 
+          accent="text-violet-400" 
         />
       </div>
 
@@ -369,7 +382,7 @@ export default function DeviceDetailPage() {
                   </p>
                 </div>
                 <p
-                  className={`text-sm font-bold ${good ? "text-white" : "text-rose-300"}`}
+                  className={`text-sm font-bold ${good ? "text-white" : "text-rose-350"}`}
                 >
                   {value}
                 </p>
@@ -377,6 +390,61 @@ export default function DeviceDetailPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Assignment History Logs */}
+      <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+            <UserCheck className="h-4.5 w-4.5 text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white">Assignment History</h3>
+            <p className="text-xs text-slate-500">Historical allocations of this hardware</p>
+          </div>
+        </div>
+
+        {loadingHistory ? (
+          <div className="text-sm text-slate-500 py-6 text-center">Loading history log...</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-800 text-slate-500 uppercase">
+                <tr>
+                  <th className="pb-2 pr-4">Log ID</th>
+                  <th className="pb-2 pr-4">Assignee</th>
+                  <th className="pb-2 pr-4">Type</th>
+                  <th className="pb-2 pr-4">Assigned By</th>
+                  <th className="pb-2 pr-4">Assignment Date</th>
+                  <th className="pb-2 pr-4">Return Date</th>
+                  <th className="pb-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignmentHistory.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-805/40 py-2">
+                    <td className="py-2.5 pr-4 text-slate-500">#{item.id}</td>
+                    <td className="py-2.5 pr-4 font-semibold text-slate-200">{item.assigneeName}</td>
+                    <td className="py-2.5 pr-4 text-slate-400">{item.assigneeType}</td>
+                    <td className="py-2.5 pr-4 text-slate-400">{item.assignedBy}</td>
+                    <td className="py-2.5 pr-4 text-slate-400">{item.assignmentDate}</td>
+                    <td className="py-2.5 pr-4 text-slate-400">{item.returnDate || "Active"}</td>
+                    <td className="py-2.5">
+                      <Badge variant={item.status === "ACTIVE" ? "success" : "muted"}>
+                        {item.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+                {assignmentHistory.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-6 text-center text-slate-550">No assignments logged for this device.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
