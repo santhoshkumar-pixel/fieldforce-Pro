@@ -2,6 +2,8 @@ package com.fieldforce.service;
 
 import com.fieldforce.model.Role;
 import com.fieldforce.repository.RoleRepository;
+import com.fieldforce.model.Permission;
+import com.fieldforce.repository.PermissionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.util.Collections;
@@ -11,6 +13,14 @@ import java.util.List;
 public class PermissionService {
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired
+    private PermissionRepository permissionRepository;
+
+    public List<Permission> getAllPermissions() {
+        return permissionRepository.findAll();
+    }
+
 
     private String normalizeRole(String roleName) {
         if (roleName == null) {

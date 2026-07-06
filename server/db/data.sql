@@ -3,6 +3,35 @@
 -- Delete any extra roles to ensure only the specified 7 roles exist
 DELETE FROM roles WHERE id NOT IN ('role-super-admin', 'role-admin', 'role-technician', 'role-warehouse', 'role-tech', 'role-product-management', 'role-tech-support');
 
+-- Seed Permissions
+DELETE FROM permissions;
+INSERT INTO permissions (id, name, description) VALUES
+('tickets.view', 'View Tickets', 'Ability to view tickets list and details'),
+('tickets.assign', 'Assign Tickets', 'Ability to assign tickets to technicians'),
+('tickets.update', 'Update Tickets', 'Ability to update ticket status and details'),
+('tickets.escalate', 'Escalate Tickets', 'Ability to escalate tickets to warehouse'),
+('tickets.override', 'Override Tickets', 'Ability to override SLA and details'),
+('users.view', 'View Users', 'Ability to view user profiles'),
+('users.manage', 'Manage Users', 'Ability to create, update, and toggle user active/inactive status'),
+('teams.view', 'View Schemes/Teams', 'Ability to view teams list'),
+('teams.manage', 'Manage Schemes/Teams', 'Ability to create and update teams'),
+('devices.view', 'View Devices', 'Ability to view device lists'),
+('devices.monitor', 'Monitor Devices', 'Ability to view live logs and telemetry from devices'),
+('devices.configure', 'Configure Devices', 'Ability to trigger firmware sync and edit device configs'),
+('sla.view', 'View SLA Monitor', 'Ability to view SLA adherence dashboard'),
+('sla.configure', 'Configure SLA Rules', 'Ability to update global SLA thresholds'),
+('analytics.view', 'View Analytics', 'Ability to view operational reports'),
+('analytics.export', 'Export Analytics', 'Ability to download PDF/CSV reports'),
+('rbac.view', 'View RBAC Settings', 'Ability to view role permissions config'),
+('rbac.manage', 'Manage RBAC Permissions', 'Ability to change role mapping and save'),
+('inventory.view', 'View Warehouse Inventory', 'Ability to view parts stock list'),
+('inventory.manage', 'Manage Warehouse Stock', 'Ability to adjust quantity, request stock, and process replacement request'),
+('attendance.view', 'View Attendance Logs', 'Ability to view shift punch list'),
+('attendance.manage', 'Manage Shifts/Schedule', 'Ability to override status and trigger break resets'),
+('training.view', 'View Training Materials', 'Ability to read documents and take quizzes'),
+('training.manage', 'Upload Training Content', 'Ability to add and remove files')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
+
 -- 1. Insert Roles
 INSERT INTO roles (id, name, description, users_count) VALUES
 ('role-super-admin', 'Super Admin', 'Super Admin and full system access', 1)

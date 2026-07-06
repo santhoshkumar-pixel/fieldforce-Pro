@@ -177,4 +177,29 @@ public class AuthController {
         List<String> permissions = permissionService.getPermissionsForRole(roleHeader);
         return ResponseEntity.ok(Map.of("permissions", permissions));
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmailHeader) {
+        
+        String identifier = (userIdHeader != null && !userIdHeader.isEmpty()) ? userIdHeader : userEmailHeader;
+        if (identifier == null || identifier.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "401 Unauthorized"));
+        }
+        
+        Optional<User> userOpt = (userIdHeader != null && !userIdHeader.isEmpty()) 
+            ? userRepository.findById(userIdHeader) 
+            : userRepository.findByEmail(userEmailHeader);
+            
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User not found"));
+        }
+        
+        User user = userOpt.get();
+        List<String> permissions = permissionService.getPermissionsForRole(user.getRole());
+        LoginResponse resp = new LoginResponse(user, permissions);
+        resp.setSuperAdmin("Super Admin".equalsIgnoreCase(user.getRole()));
+        return ResponseEntity.ok(resp);
+    }
 }

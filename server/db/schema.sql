@@ -261,3 +261,11 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS completed_by_user_id VARCHAR(100);
 -- 19. Device Assignments Ticket ID Column
 ALTER TABLE device_assignments ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(50);
 ALTER TABLE component_usage_logs ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(50);
+
+-- 20. Permissions table
+CREATE TABLE IF NOT EXISTS permissions (
+    id VARCHAR(100) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+

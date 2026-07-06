@@ -2,8 +2,10 @@ package com.fieldforce.controller;
 
 import com.fieldforce.model.User;
 import com.fieldforce.model.Role;
+import com.fieldforce.model.Permission;
 import com.fieldforce.repository.UserRepository;
 import com.fieldforce.repository.RoleRepository;
+import com.fieldforce.repository.PermissionRepository;
 import com.fieldforce.service.PermissionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,9 @@ public class UserController {
 
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired
+    private PermissionRepository permissionRepository;
 
     @Autowired
     private PermissionService permissionService;
@@ -204,5 +209,47 @@ public class UserController {
             roleRepository.delete(role);
             return ResponseEntity.ok().build();
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/permissions")
+    public ResponseEntity<?> getAllPermissions() {
+        return ResponseEntity.ok(permissionRepository.findAll());
+    }
+
+    @GetMapping("/roles/{roleId}/permissions")
+    public ResponseEntity<?> getRolePermissions(@PathVariable String roleId) {
+        Optional<Role> roleOpt = roleRepository.findById(roleId);
+        if (roleOpt.isEmpty()) {
+            roleOpt = roleRepository.findAll().stream()
+                    .filter(r -> r.getName().equalsIgnoreCase(roleId) || 
+                                 r.getId().equalsIgnoreCase(roleId) ||
+                                 r.getId().equalsIgnoreCase("role-" + roleId.toLowerCase().trim().replace(" ", "-")))
+                    .findFirst();
+        }
+        if (roleOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Role not found"));
+        }
+        return ResponseEntity.ok(roleOpt.get().getPermissions());
+    }
+
+    @PutMapping("/roles/{roleId}/permissions")
+    @Transactional
+    public ResponseEntity<?> updateRolePermissions(@PathVariable String roleId, @RequestBody List<String> permissions) {
+        Optional<Role> roleOpt = roleRepository.findById(roleId);
+        if (roleOpt.isEmpty()) {
+            roleOpt = roleRepository.findAll().stream()
+                    .filter(r -> r.getName().equalsIgnoreCase(roleId) || 
+                                 r.getId().equalsIgnoreCase(roleId) ||
+                                 r.getId().equalsIgnoreCase("role-" + roleId.toLowerCase().trim().replace(" ", "-")))
+                    .findFirst();
+        }
+        if (roleOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Role not found"));
+        }
+        
+        Role role = roleOpt.get();
+        role.setPermissions(permissions);
+        Role saved = roleRepository.save(role);
+        return ResponseEntity.ok(saved);
     }
 }
