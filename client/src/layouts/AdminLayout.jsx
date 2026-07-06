@@ -227,7 +227,7 @@ export default function AdminLayout() {
   return localStorage.getItem("sidebar-collapsed") === "true";
   });
   const [isHovered, setIsHovered] = useState(false);
-  const showExpanded = !isSidebarCollapsed || isHovered;
+  const showExpanded = true;
  const [isDarkMode, setIsDarkMode] = useState(() => {
  const saved = localStorage.getItem("theme");
  return saved !== null ? saved === "dark" : true;
@@ -492,30 +492,6 @@ export default function AdminLayout() {
        showExpanded ? "w-[250px] p-4" : "w-20 p-3"
      }`}
    >
-  <div className={`mb-3.5 flex items-center justify-between gap-3 border-b border-slate-800 pb-2 transition-all duration-300 ${
-  !showExpanded ? "flex-col border-b-0 pb-0" : "flex-row"
-  }`}>
-  <div className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
-    !showExpanded ? "max-w-0 max-h-0 opacity-0" : "max-w-[180px] max-h-12 opacity-100"
-  }`}>
-  <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">
-  {user?.role} Menu
-  </p>
-  <h2 className="mt-1 text-lg font-bold text-white">
-  Workspace
-  </h2>
-  </div>
-  <button
-  type="button"
-  onClick={toggleSidebar}
-  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 shadow-lg hover:bg-slate-800 hover:text-white cursor-pointer ${
-  !showExpanded ? "mx-auto mb-2" : ""
-  }`}
-  title={!showExpanded ? "Expand Sidebar" : "Collapse Sidebar"}
-  >
-  <Menu className="h-5 w-5" />
-  </button>
-  </div>
   <div className="flex flex-col gap-1">
   {categoriesWithPermissions.map((cat) => (
   <div key={cat.title} className="flex flex-col gap-1">
@@ -547,24 +523,16 @@ export default function AdminLayout() {
  isMobileMenuOpen ? "" : "-translate-x-full"
  }`}
  >
- <div className="mb-6 flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
- <div>
- <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
- {user?.role} Menu
- </p>
- <h2 className="mt-2 text-xl font-semibold text-white">
- Workspace
- </h2>
- </div>
- <button
- type="button"
- onClick={() => setIsMobileMenuOpen(false)}
- className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-900 hover:text-white "
- title="Close Menu"
- >
- <X className="h-5 w-5" />
- </button>
- </div>
+  <div className="mb-6 flex items-center justify-end border-b border-slate-800 pb-3">
+  <button
+  type="button"
+  onClick={() => setIsMobileMenuOpen(false)}
+  className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-900 hover:text-white "
+  title="Close Menu"
+  >
+  <X className="h-5 w-5" />
+  </button>
+  </div>
  <div className="flex flex-col gap-1">
  {categoriesWithPermissions.map((cat) => (
  <div key={cat.title} className="flex flex-col gap-1">
