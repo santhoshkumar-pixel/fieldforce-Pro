@@ -70,6 +70,11 @@ function getEventName(type) {
 export default function AttendancePage() {
  const { user } = useAuth();
  const isSuperAdmin = user?.role === "Super Admin";
+
+ // Roles that are management-level and do NOT need punch-in/out controls
+ const MANAGEMENT_ROLES = ["Super Admin", "Operational Manager", "Warehouse Manager"];
+ const canUsePunchControls = !MANAGEMENT_ROLES.includes(user?.role);
+
  const canViewAllAttendance =
   user?.role === "Super Admin" ||
   user?.role === "Operational Manager" ||
@@ -303,12 +308,12 @@ export default function AttendancePage() {
  subtitle={canViewAllAttendance ? `Active profile: ${myRecord?.name || "None"}` : "Your shift status and actions"}
  />
  <CardBody>
- {isSuperAdmin && myRecord?.userId === user?.id ? (
+ {!canUsePunchControls && myRecord?.userId === user?.id ? (
  <div className="flex flex-col items-center justify-center py-10 text-slate-400 space-y-3">
  <Clock className="h-12 w-12 text-slate-600 stroke-[1.5]" />
  <p className="text-sm font-semibold text-slate-300">Attendance Not Required</p>
  <p className="text-xs text-slate-500 text-center">
- Super Admin is exempt from punch-in / punch-out tracking.
+ Management roles are exempt from punch-in / punch-out tracking.
  </p>
  </div>
  ) : myRecord ? (
@@ -391,8 +396,8 @@ export default function AttendancePage() {
  </div>
  </div>
 
- {/* Actions — only visible for the logged-in user's own record */}
- {myRecord.userId === user?.id && !isSuperAdmin && (
+ {/* Actions — only visible for the logged-in user's own record, and only for field-level roles */}
+ {myRecord.userId === user?.id && canUsePunchControls && (
  <div className="pt-2 space-y-2">
  <div className="grid grid-cols-2 gap-2">
  <button
