@@ -227,7 +227,7 @@ export default function AdminLayout() {
   return localStorage.getItem("sidebar-collapsed") === "true";
   });
   const [isHovered, setIsHovered] = useState(false);
-  const showExpanded = true;
+  const showExpanded = isHovered;
  const [isDarkMode, setIsDarkMode] = useState(() => {
  const saved = localStorage.getItem("theme");
  return saved !== null ? saved === "dark" : true;
