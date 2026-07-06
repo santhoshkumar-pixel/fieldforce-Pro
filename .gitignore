@@ -6,6 +6,8 @@ dist-ssr/
 client/node_modules/
 client/dist/
 client/dist-ssr/
+.vite/
+client/.vite/
 
 # Java / Maven / Backend Build
 server/target/
