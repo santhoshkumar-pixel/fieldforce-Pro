@@ -3,13 +3,16 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+client/node_modules/
+client/dist/
+client/dist-ssr/
 
 # Java / Maven / Backend Build
-backend/target/
-backend/bin/
+server/target/
+server/bin/
 .mvn/
-backend/.mvn/
-backend/uploads/
+server/.mvn/
+server/uploads/
 
 # Environment configurations
 .env
@@ -17,6 +20,11 @@ backend/uploads/
 .env.development.local
 .env.test.local
 .env.production.local
+client/.env
+client/.env.local
+client/.env.development.local
+client/.env.test.local
+client/.env.production.local
 
 # Logs
 *.log
