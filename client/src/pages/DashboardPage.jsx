@@ -1637,7 +1637,8 @@ export default function DashboardPage() {
  </div>
  </div>
 
- {!isSuperAdmin && (
+ {/* Punch controls — only for field-level roles, not management */}
+ {!["Super Admin", "Operational Manager", "Warehouse Manager"].includes(user?.role) && (
 <div className="mt-6 space-y-2 max-w-md">
  <div className="grid grid-cols-2 gap-2">
  <button type="button" disabled={!canSimPunchIn} onClick={handleSimPunchIn}
@@ -1661,6 +1662,12 @@ export default function DashboardPage() {
  </div>
   </div>
   )}
+ {["Operational Manager", "Warehouse Manager"].includes(user?.role) && (
+   <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 flex items-center gap-2 text-xs text-slate-500">
+     <MapPin className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+     <span>Read-only monitoring view. Punch controls are not available for management roles.</span>
+   </div>
+ )}
  </div>
  ) : (
  <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 p-6">
