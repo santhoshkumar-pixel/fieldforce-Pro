@@ -68,17 +68,18 @@ function getEventName(type) {
 }
 
 export default function AttendancePage() {
- const { user } = useAuth();
- const isSuperAdmin = user?.role === "Super Admin";
+  const { user, hasPermission } = useAuth();
+  const isSuperAdmin = user?.role === "Super Admin";
 
- // Roles that are management-level and do NOT need punch-in/out controls
- const MANAGEMENT_ROLES = ["Super Admin", "Operational Manager", "Warehouse Manager"];
- const canUsePunchControls = !MANAGEMENT_ROLES.includes(user?.role);
+  // Roles that are management-level and do NOT need punch-in/out controls
+  const MANAGEMENT_ROLES = ["Super Admin", "Admin", "Operational Manager", "Warehouse Manager"];
+  const canUsePunchControls = !MANAGEMENT_ROLES.includes(user?.role);
 
- const canViewAllAttendance =
-  user?.role === "Super Admin" ||
-  user?.role === "Operational Manager" ||
-  user?.role === "Warehouse Manager";
+  const canViewAllAttendance =
+   user?.role === "Super Admin" ||
+   user?.role === "Admin" ||
+   user?.role === "Operational Manager" ||
+   user?.role === "Warehouse Manager";
 
  const {
  shifts,
@@ -396,8 +397,9 @@ export default function AttendancePage() {
  </div>
  </div>
 
- {/* Actions — only visible for the logged-in user's own record, and only for field-level roles */}
- {myRecord.userId === user?.id && canUsePunchControls && (
+  {/* Actions — visible for own record, or for managers with override permission */}
+  {((myRecord.userId === user?.id && canUsePunchControls) || 
+    (myRecord.userId !== user?.id && hasPermission("attendance.manage"))) && (
  <div className="pt-2 space-y-2">
  <div className="grid grid-cols-2 gap-2">
  <button
@@ -441,12 +443,12 @@ export default function AttendancePage() {
  </div>
  </div>
  )}
- {myRecord.userId !== user?.id && canViewAllAttendance && (
-   <div className="pt-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 flex items-center gap-2 text-xs text-slate-500">
-     <MapPin className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-     <span>Read-only monitoring view. Punch controls are available only to the technician's own account.</span>
-   </div>
- )}
+  {myRecord.userId !== user?.id && canViewAllAttendance && !hasPermission("attendance.manage") && (
+    <div className="pt-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 flex items-center gap-2 text-xs text-slate-500">
+      <MapPin className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+      <span>Read-only monitoring view. Punch controls are available only to the technician's own account.</span>
+    </div>
+  )}
  </div>
  ) : (
  <div className="text-center text-slate-500 py-6">

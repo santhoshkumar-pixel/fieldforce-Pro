@@ -118,10 +118,7 @@ public class PermissionInterceptor implements HandlerInterceptor {
 
         // 8. Attendance
         if (path.startsWith("attendance")) {
-            if ("GET".equals(method)) {
-                return "attendance.view";
-            }
-            return "attendance.manage";
+            return "attendance.view";
         }
 
         // 9. Training

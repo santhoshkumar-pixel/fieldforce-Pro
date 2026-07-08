@@ -413,16 +413,16 @@ const parseDeviceIdsAndNames = (deviceIdStr, deviceNameStr) => {
 };
 
 export default function DashboardPage() {
- const { user, isSuperAdmin } = useAuth();
- const isTechnician = user?.role === "Technician" || user?.role === "Field Technician" || user?.role === "Tech Support";
- const { selectedRegion, setSelectedRegionId } = useRegion();
+  const { user, isSuperAdmin, hasPermission } = useAuth();
+  const isTechnician = user?.role === "Technician" || user?.role === "Field Technician" || user?.role === "Tech Support";
+  const { selectedRegion, setSelectedRegionId } = useRegion();
 
- const userPlace = useMemo(() => {
- if (isSuperAdmin) {
- return selectedRegion ? selectedRegion.name : null; // null = all regions
- }
- return getUserPlace(user);
- }, [user, isSuperAdmin, selectedRegion]);
+  const userPlace = useMemo(() => {
+    if (isSuperAdmin) {
+      return selectedRegion ? selectedRegion.name : null; // null = all regions
+    }
+    return getUserPlace(user);
+  }, [user, isSuperAdmin, selectedRegion]);
 
  const getTicketPlace = (t) => {
  if (!t) return "Goa";
@@ -1631,14 +1631,12 @@ export default function DashboardPage() {
  <span className="text-slate-200">{formatTimestamp(selectedTech.punchInAt)}</span>
  </div>
  <div className="flex justify-between">
- <span>Punched Out:</span>
- <span className="text-slate-200">{formatTimestamp(selectedTech.punchOutAt)}</span>
+   <span>Punched Out:</span>
+   <span className="text-slate-200">{formatTimestamp(selectedTech.punchOutAt)}</span>
  </div>
  </div>
- </div>
-
- {/* Punch controls — only for field-level roles, not management */}
- {!["Super Admin", "Operational Manager", "Warehouse Manager"].includes(user?.role) && (
+ {/* Punch controls — only for field-level roles, or users with override permission */}
+  {(!["Super Admin", "Admin", "Operational Manager", "Warehouse Manager"].includes(user?.role) || hasPermission("attendance.manage")) && (
 <div className="mt-6 space-y-2 max-w-md">
  <div className="grid grid-cols-2 gap-2">
  <button type="button" disabled={!canSimPunchIn} onClick={handleSimPunchIn}
@@ -1662,13 +1660,14 @@ export default function DashboardPage() {
  </div>
   </div>
   )}
- {["Operational Manager", "Warehouse Manager"].includes(user?.role) && (
+ {["Admin", "Operational Manager", "Warehouse Manager"].includes(user?.role) && !hasPermission("attendance.manage") && (
    <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 flex items-center gap-2 text-xs text-slate-500">
      <MapPin className="h-3.5 w-3.5 text-slate-600 shrink-0" />
      <span>Read-only monitoring view. Punch controls are not available for management roles.</span>
    </div>
  )}
  </div>
+  </div>
  ) : (
  <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 p-6">
  <Clock className="h-10 w-10 text-slate-600 mb-2 stroke-[1.5]" />
