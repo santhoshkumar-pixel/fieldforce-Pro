@@ -3,15 +3,20 @@ package com.fieldforce.config;
 import com.fieldforce.model.User;
 import com.fieldforce.model.Ticket;
 import com.fieldforce.model.TechnicianActivityLog;
+import com.fieldforce.model.Role;
+import com.fieldforce.model.Permission;
 import com.fieldforce.repository.UserRepository;
 import com.fieldforce.repository.TicketRepository;
 import com.fieldforce.repository.TechnicianActivityLogRepository;
+import com.fieldforce.repository.RoleRepository;
+import com.fieldforce.repository.PermissionRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -20,8 +25,56 @@ public class DataInitializer {
     public CommandLineRunner seedSuperAdmin(
             UserRepository userRepo,
             TicketRepository ticketRepo,
-            TechnicianActivityLogRepository activityRepo) {
+            TechnicianActivityLogRepository activityRepo,
+            RoleRepository roleRepo,
+            PermissionRepository permissionRepo) {
         return args -> {
+            // Seed roles and permissions dynamically if database is empty
+            if (roleRepo.count() == 0) {
+                roleRepo.save(new Role("role-super-admin", "Super Admin", "Super Admin and full system access", 1, Arrays.asList("*.*")));
+                roleRepo.save(new Role("role-admin", "Operational Manager", "Operational Manager and full system access", 2, Arrays.asList("*.*")));
+                roleRepo.save(new Role("role-technician", "Field Technician", "Resolve device issues and update ticket status in the field", 18, Arrays.asList(
+                    "tickets.view", "tickets.update", "devices.view", "evidence.upload", "attendance.view", "training.view"
+                )));
+                roleRepo.save(new Role("role-warehouse", "Warehouse Manager", "Manage warehouse inventory, devices, and deployments", 2, Arrays.asList(
+                    "tickets.view", "tickets.update", "tickets.escalate", "tickets.override", "users.manage", "teams.manage", "devices.view", "devices.configure", "sla.view", "sla.configure", "analytics.view", "analytics.export", "rbac.manage", "rbac.view", "inventory.view", "inventory.manage", "attendance.view", "training.view"
+                )));
+                roleRepo.save(new Role("role-tech", "Technician", "Resolve device issues and perform general technical tasks", 2, Arrays.asList(
+                    "tickets.view", "tickets.update", "devices.view", "attendance.view", "training.view"
+                )));
+                roleRepo.save(new Role("role-product-management", "Product Management", "View-only access to all dashboards and operations", 0, Arrays.asList(
+                    "tickets.view", "users.view", "teams.view", "devices.view", "sla.view", "analytics.view", "rbac.view", "inventory.view", "attendance.view", "training.view"
+                )));
+                roleRepo.save(new Role("role-tech-support", "Tech Support", "Resolve escalated technical support issues", 1, Arrays.asList(
+                    "tickets.view", "tickets.update", "devices.view", "evidence.upload", "attendance.view", "training.view"
+                )));
+            }
+
+            if (permissionRepo.count() == 0) {
+                permissionRepo.save(new Permission("tickets.view", "View Tickets", "Ability to view ticket queues"));
+                permissionRepo.save(new Permission("tickets.update", "Update Tickets", "Ability to respond and progress tickets"));
+                permissionRepo.save(new Permission("tickets.escalate", "Escalate Tickets", "Ability to escalate overdue tickets"));
+                permissionRepo.save(new Permission("tickets.override", "Override Tickets", "Ability to override status and assignments"));
+                permissionRepo.save(new Permission("users.view", "View Users", "Ability to view user accounts"));
+                permissionRepo.save(new Permission("users.manage", "Manage Users", "Ability to create and edit user accounts"));
+                permissionRepo.save(new Permission("teams.view", "View Teams", "Ability to view teams"));
+                permissionRepo.save(new Permission("teams.manage", "Manage Teams", "Ability to configure teams and assignments"));
+                permissionRepo.save(new Permission("devices.view", "View Devices", "Ability to view device health and details"));
+                permissionRepo.save(new Permission("devices.configure", "Configure Devices", "Ability to register and provision devices"));
+                permissionRepo.save(new Permission("sla.view", "View SLA Status", "Ability to view SLA parameters"));
+                permissionRepo.save(new Permission("sla.configure", "Configure SLA Rules", "Ability to edit SLA timers"));
+                permissionRepo.save(new Permission("analytics.view", "View Analytics", "Ability to view operational reports"));
+                permissionRepo.save(new Permission("analytics.export", "Export Analytics", "Ability to download raw data reports"));
+                permissionRepo.save(new Permission("rbac.view", "View RBAC Controls", "Ability to view roles and permissions"));
+                permissionRepo.save(new Permission("rbac.manage", "Manage RBAC Configs", "Ability to configure role permission scopes"));
+                permissionRepo.save(new Permission("inventory.view", "View Inventory", "Ability to view warehouse stocks"));
+                permissionRepo.save(new Permission("inventory.manage", "Manage Inventory", "Ability to adjust stock balances"));
+                permissionRepo.save(new Permission("attendance.view", "View Shift Records", "Ability to check shift statuses"));
+                permissionRepo.save(new Permission("attendance.manage", "Manage Shifts/Schedule", "Ability to override status and trigger break resets"));
+                permissionRepo.save(new Permission("training.view", "View Training Materials", "Ability to read documents and take quizzes"));
+                permissionRepo.save(new Permission("training.manage", "Upload Training Content", "Ability to add and remove files"));
+            }
+
             // Update any existing users with old Scheme Admin/PC/CP/Admin/Supervisor roles to Operational Manager
             List<User> allUsers = userRepo.findAll();
             for (User u : allUsers) {

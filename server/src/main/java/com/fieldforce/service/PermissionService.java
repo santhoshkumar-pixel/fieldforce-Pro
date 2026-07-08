@@ -53,7 +53,7 @@ public class PermissionService {
         }
         // Find role and return its permission list, or empty list if not found
         final String finalRoleName = normalized;
-        return roleRepository.findAll().stream()
+        List<String> dbPerms = roleRepository.findAll().stream()
                 .filter(r -> r.getName().equalsIgnoreCase(finalRoleName) || 
                              r.getName().equalsIgnoreCase(roleName) || 
                              r.getId().equalsIgnoreCase(roleName) || 
@@ -63,6 +63,32 @@ public class PermissionService {
                 .findFirst()
                 .map(Role::getPermissions)
                 .orElse(Collections.emptyList());
+
+        if (dbPerms != null && !dbPerms.isEmpty()) {
+            return dbPerms;
+        }
+
+        // Hardcoded fallbacks if the database role permissions table is empty
+        if ("Operational Manager".equalsIgnoreCase(normalized)) {
+            return List.of("*.*");
+        }
+        if ("Field Technician".equalsIgnoreCase(normalized)) {
+            return List.of("tickets.view", "tickets.update", "devices.view", "evidence.upload", "attendance.view", "training.view");
+        }
+        if ("Warehouse Manager".equalsIgnoreCase(normalized)) {
+            return List.of("tickets.view", "tickets.update", "tickets.escalate", "tickets.override", "users.manage", "teams.manage", "devices.view", "devices.configure", "sla.view", "sla.configure", "analytics.view", "analytics.export", "rbac.manage", "rbac.view", "inventory.view", "inventory.manage", "attendance.view", "training.view");
+        }
+        if ("Technician".equalsIgnoreCase(normalized)) {
+            return List.of("tickets.view", "tickets.update", "devices.view", "attendance.view", "training.view");
+        }
+        if ("Product Management".equalsIgnoreCase(normalized)) {
+            return List.of("tickets.view", "users.view", "teams.view", "devices.view", "sla.view", "analytics.view", "rbac.view", "inventory.view", "attendance.view", "training.view");
+        }
+        if ("Tech Support".equalsIgnoreCase(normalized) || "Technical Support".equalsIgnoreCase(normalized)) {
+            return List.of("tickets.view", "tickets.update", "devices.view", "evidence.upload", "attendance.view", "training.view");
+        }
+
+        return Collections.emptyList();
     }
 
     public boolean hasPermission(String roleName, String requiredPermission) {
