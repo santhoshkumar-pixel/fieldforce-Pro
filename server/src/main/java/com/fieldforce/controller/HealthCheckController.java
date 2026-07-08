@@ -40,6 +40,11 @@ public class HealthCheckController {
     @Autowired
     private com.fieldforce.repository.NotificationRepository notificationRepository;
 
+    @GetMapping("")
+    public String health() {
+        return "FieldForce backend running";
+    }
+
     @GetMapping("/diagnostics")
     public ResponseEntity<?> getDiagnostics(
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
