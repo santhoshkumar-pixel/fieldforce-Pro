@@ -87,9 +87,16 @@ public class AttendanceController {
         if (roleHeader == null || (!permissionService.hasPermission(roleHeader, "attendance.view") && !permissionService.hasPermission(roleHeader, "attendance.manage"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: insufficient permissions"));
         }
+        if (shift == null || shift.getUserId() == null || shift.getUserId().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "User ID is required"));
+        }
+        if (shift.getName() == null || shift.getName().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Name is required"));
+        }
         if (!permissionService.hasRegionAccess(roleHeader, zoneHeader, shift.getZone())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: cannot modify shift outside your region"));
         }
+        ensureUserExists(shift.getUserId(), shift.getName(), shift.getTeam(), shift.getZone(), roleHeader, null);
         AttendanceShift saved = shiftRepository.save(shift);
         return ResponseEntity.ok(saved);
     }
@@ -115,10 +122,16 @@ public class AttendanceController {
             @RequestBody PunchRequest request,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
             @RequestHeader(value = "X-User-Name", required = false) String nameHeader,
-            @RequestHeader(value = "X-User-Zone", required = false) String zoneHeader) {
+            @RequestHeader(value = "X-User-Zone", required = false) String zoneHeader,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmailHeader) {
         if (roleHeader == null || (!permissionService.hasPermission(roleHeader, "attendance.view") && !permissionService.hasPermission(roleHeader, "attendance.manage"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: insufficient permissions"));
         }
+        if (request == null || request.getTechId() == null || request.getTechId().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "techId is required"));
+        }
+        ensureUserExists(request.getTechId(), nameHeader, "Operations", zoneHeader, roleHeader, userEmailHeader);
+        
         Optional<AttendanceShift> shiftOpt = shiftRepository.findById(request.getTechId());
         if (shiftOpt.isEmpty()) {
             // Auto-create a shift record for users without a pre-seeded row
@@ -189,6 +202,9 @@ public class AttendanceController {
         if (roleHeader == null || (!permissionService.hasPermission(roleHeader, "attendance.view") && !permissionService.hasPermission(roleHeader, "attendance.manage"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: insufficient permissions"));
         }
+        if (request == null || request.getTechId() == null || request.getTechId().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "techId is required"));
+        }
         Optional<AttendanceShift> shiftOpt = shiftRepository.findById(request.getTechId());
         if (shiftOpt.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "No shift record found for this user. Please punch in first."));
@@ -243,6 +259,9 @@ public class AttendanceController {
         if (roleHeader == null || (!permissionService.hasPermission(roleHeader, "attendance.view") && !permissionService.hasPermission(roleHeader, "attendance.manage"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: insufficient permissions"));
         }
+        if (request == null || request.getTechId() == null || request.getTechId().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "techId is required"));
+        }
         Optional<AttendanceShift> shiftOpt = shiftRepository.findById(request.getTechId());
         if (shiftOpt.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "No shift record found. Please punch in first."));
@@ -286,6 +305,9 @@ public class AttendanceController {
         if (roleHeader == null || (!permissionService.hasPermission(roleHeader, "attendance.view") && !permissionService.hasPermission(roleHeader, "attendance.manage"))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied: insufficient permissions"));
         }
+        if (request == null || request.getTechId() == null || request.getTechId().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "techId is required"));
+        }
         Optional<AttendanceShift> shiftOpt = shiftRepository.findById(request.getTechId());
         if (shiftOpt.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "No shift record found. Please punch in first."));
@@ -323,5 +345,23 @@ public class AttendanceController {
         eventRepository.save(event);
 
         return ResponseEntity.ok(Map.of("message", shift.getName() + " break ended", "shift", shift));
+    }
+
+    private void ensureUserExists(String userId, String name, String team, String zone, String role, String email) {
+        if (userId == null || userId.trim().isEmpty()) {
+            return;
+        }
+        if (!userRepository.existsById(userId)) {
+            User u = new User();
+            u.setId(userId);
+            u.setName(name != null ? name : userId);
+            u.setEmail(email != null && !email.trim().isEmpty() ? email : userId.toLowerCase() + "@fieldforce.io");
+            u.setPassword("password123");
+            u.setRole(role != null ? role : "Field Technician");
+            u.setTeam(team != null ? team : "Operations");
+            u.setStatus("Active");
+            u.setZone(zone != null ? zone : "Goa");
+            userRepository.save(u);
+        }
     }
 }
