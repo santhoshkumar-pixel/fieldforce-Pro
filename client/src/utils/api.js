@@ -14,7 +14,9 @@ import {
   initialAttendanceHistory,
 } from "../data/attendanceData";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+import axiosInstance from "../api/axios";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 // Mutable in-memory stores for mock fallback mode
 let mockTicketsList = [...initialTickets];
@@ -651,64 +653,27 @@ function getMockFallback(endpoint, options = {}) {
 }
 
 async function request(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
-
-  let roleHeader = null;
-  let nameHeader = null;
-  let zoneHeader = null;
-  let emailHeader = null;
-  let userIdHeader = null;
-  try {
-    const sessionStr = sessionStorage.getItem("fieldforce_admin_session");
-    if (sessionStr) {
-      const sessionUser = JSON.parse(sessionStr);
-      if (sessionUser && sessionUser.role) roleHeader = sessionUser.role;
-      if (sessionUser && sessionUser.name) nameHeader = sessionUser.name;
-      if (sessionUser && sessionUser.zone) zoneHeader = sessionUser.zone;
-      if (sessionUser && sessionUser.email) emailHeader = sessionUser.email;
-      if (sessionUser && sessionUser.id) userIdHeader = sessionUser.id;
-    }
-  } catch (e) {
-    console.error("Error reading session storage:", e);
-  }
-
-  const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
-
-  if (roleHeader) headers["X-User-Role"] = roleHeader;
-  if (nameHeader) headers["X-User-Name"] = nameHeader;
-  if (zoneHeader) headers["X-User-Zone"] = zoneHeader;
-  if (emailHeader) headers["X-User-Email"] = emailHeader;
-  if (userIdHeader) headers["X-User-Id"] = userIdHeader;
-
+  const method = (options.method || "GET").toUpperCase();
   const config = {
-    ...options,
-    headers,
+    method,
+    url: endpoint,
+    headers: options.headers || {},
   };
 
-  if (options.body && typeof options.body !== "string") {
-    config.body = JSON.stringify(options.body);
+  if (options.body) {
+    config.data = options.body;
   }
 
   try {
-    const response = await fetch(url, config);
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const error = new Error(errorData.error || `HTTP error! Status: ${response.status}`);
-      error.isHttpError = true;
-      throw error;
-    }
-
+    const response = await axiosInstance(config);
     api.isMockMode = false;
-    if (response.status === 204) return null;
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    return response.data;
   } catch (error) {
-    if (error.isHttpError) {
-      throw error;
+    if (error.response) {
+      const errorData = error.response.data || {};
+      const errObj = new Error(errorData.error || `HTTP error! Status: ${error.response.status}`);
+      errObj.isHttpError = true;
+      throw errObj;
     }
     // Return mock data fallback when backend fetch fails or is offline
     api.isMockMode = true;
@@ -849,12 +814,12 @@ export const api = {
       const formData = new FormData();
       formData.append("file", file);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/training/upload`, {
-          method: "POST",
-          body: formData,
+        const response = await axiosInstance.post("/api/training/upload", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         });
-        if (!response.ok) throw new Error("File upload failed");
-        return await response.json();
+        return response.data;
       } catch (err) {
         return { url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" };
       }

@@ -21,7 +21,7 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
 import { getQuizByMaterialId, getQuizResult } from "../data/quizStore";
 
-const VITE_API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const VITE_API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 const typeConfig = {
   TEXT: {

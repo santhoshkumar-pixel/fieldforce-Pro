@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { api } from "../utils/api";
 import { operationalZones, shiftStatuses } from "../data/attendanceData";
+import axiosInstance from "../api/axios";
 
 const AttendanceContext = createContext(null);
 
@@ -62,11 +63,9 @@ export function AttendanceProvider({ children }) {
                 setShifts((prev) => [created, ...prev]);
               })
               .catch((err) => console.error("Error creating user shift:", err))
-          : fetch(`http://localhost:8080/api/attendance/shifts`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(newUserShift)
-            }).then(() => fetchAttendanceData());
+          : axiosInstance.post(`/api/attendance/shifts`, newUserShift)
+              .then(() => fetchAttendanceData())
+              .catch((err) => console.error("Error creating user shift:", err));
       }
     }
   }, [user?.id, shifts.length]);
