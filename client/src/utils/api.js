@@ -690,7 +690,6 @@ export const api = {
         body: { email, password },
       }),
     getPermissions: () => request("/api/auth/permissions"),
-    getMe: () => request("/api/auth/me"),
   },
 
   users: {
