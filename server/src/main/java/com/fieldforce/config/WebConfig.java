@@ -21,9 +21,23 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
+                .allowedOrigins(
+                        "https://fieldforceproo.netlify.app",
+                        "http://localhost:5173",
+                        "http://localhost:3000"
+                )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
-                .allowedHeaders("*")
+                .allowedHeaders(
+                        "Authorization",
+                        "Content-Type",
+                        "X-User-Role",
+                        "X-User-Name",
+                        "X-User-Zone",
+                        "X-User-Email",
+                        "X-User-Id",
+                        "Accept",
+                        "Origin"
+                )
                 .allowCredentials(true);
     }
 
