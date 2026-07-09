@@ -23,6 +23,7 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins(
                         "https://fieldforceproo.netlify.app",
+                        "https://fieldforceproo.netlify.app/",
                         "http://localhost:5173",
                         "http://localhost:3000"
                 )

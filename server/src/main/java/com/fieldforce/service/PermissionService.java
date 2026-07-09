@@ -73,13 +73,13 @@ public class PermissionService {
             return List.of("*.*");
         }
         if ("Field Technician".equalsIgnoreCase(normalized)) {
-            return List.of("tickets.view", "tickets.update", "devices.view", "evidence.upload", "attendance.view", "training.view");
+            return List.of("tickets.view", "tickets.update", "tickets.escalate", "devices.view", "evidence.upload", "attendance.view", "training.view");
         }
         if ("Warehouse Manager".equalsIgnoreCase(normalized)) {
             return List.of("tickets.view", "tickets.update", "tickets.escalate", "tickets.override", "users.manage", "teams.manage", "devices.view", "devices.configure", "sla.view", "sla.configure", "analytics.view", "analytics.export", "rbac.manage", "rbac.view", "inventory.view", "inventory.manage", "attendance.view", "training.view");
         }
         if ("Technician".equalsIgnoreCase(normalized)) {
-            return List.of("tickets.view", "tickets.update", "devices.view", "attendance.view", "training.view");
+            return List.of("tickets.view", "tickets.update", "tickets.escalate", "devices.view", "attendance.view", "training.view");
         }
         if ("Product Management".equalsIgnoreCase(normalized)) {
             return List.of("tickets.view", "users.view", "teams.view", "devices.view", "sla.view", "analytics.view", "rbac.view", "inventory.view", "attendance.view", "training.view");

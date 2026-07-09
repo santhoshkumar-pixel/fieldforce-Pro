@@ -11,6 +11,7 @@ import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationContext";
 import TicketDetailsModal from "./tickets/TicketDetailsModal";
+import EscalateTicketModal from "./tickets/EscalateTicketModal";
 import DeviceDetailsModal from "./devices/DeviceDetailsModal";
 import Badge from "./ui/Badge";
 
@@ -1336,9 +1337,10 @@ export default function UniversalSearch() {
  const [scopedData, setScopedData] = useState(null);
 
  const [results, setResults] = useState(null);
- const [activeTicket, setActiveTicket] = useState(null);
- const [activeDevice, setActiveDevice] = useState(null);
- const [toast, setToast] = useState("");
+  const [activeTicket, setActiveTicket] = useState(null);
+  const [activeDevice, setActiveDevice] = useState(null);
+  const [escalateModal, setEscalateModal] = useState({ open: false, ticketId: null, ticket: null });
+  const [toast, setToast] = useState("");
 
  const inputRef = useRef(null);
  const containerRef = useRef(null);
@@ -1427,6 +1429,20 @@ export default function UniversalSearch() {
  } catch { showToast("Failed to reject ticket"); }
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, []);
+
+ const handleEscalateConfirm = useCallback(async (reason, escalationType) => {
+ const id = escalateModal.ticketId;
+ try {
+ await api.tickets.escalate(id, reason, escalationType);
+ showToast(`Ticket ${id} escalated successfully`);
+ setEscalateModal({ open: false, ticketId: null, ticket: null });
+ const t = await api.tickets.getAll();
+ setRawData(p => ({...p, tickets: Array.isArray(t)?t:[]}));
+ } catch {
+ showToast("Failed to escalate ticket");
+ }
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [escalateModal.ticketId]);
 
  const hasAnyResults = results && Object.values(results.results).some(a => a.length > 0);
  const SUGGESTIONS = getSuggestions(user);
@@ -1974,6 +1990,17 @@ export default function UniversalSearch() {
  onSend={() => navigate("/tickets")}
  onStartTravel={async (id) => updateTicketStatus(id, "TRAVELLING")}
  onComplete={async (id) => updateTicketStatus(id, "COMPLETED")}
+ onEscalate={(t) => {
+   setEscalateModal({ open: true, ticketId: t.id, ticket: t });
+   setActiveTicket(null);
+ }}
+ />
+ <EscalateTicketModal
+ open={escalateModal.open}
+ ticketId={escalateModal.ticketId}
+ ticket={escalateModal.ticket}
+ onClose={() => setEscalateModal({ open: false, ticketId: null, ticket: null })}
+ onConfirm={handleEscalateConfirm}
  />
  <DeviceDetailsModal
  open={Boolean(activeDevice)}

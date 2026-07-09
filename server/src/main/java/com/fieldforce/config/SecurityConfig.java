@@ -33,6 +33,7 @@ public class SecurityConfig {
 
         config.setAllowedOrigins(List.of(
             "https://fieldforceproo.netlify.app",
+            "https://fieldforceproo.netlify.app/",
             "http://localhost:5173",
             "http://localhost:3000"
         ));

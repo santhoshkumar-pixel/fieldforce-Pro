@@ -49,6 +49,7 @@ import SlaTimer from "../components/SlaTimer";
 import Badge, { severityVariant, deviceStatusVariant } from "../components/ui/Badge";
 import { Card, CardBody, CardHeader } from "../components/ui/Card";
 import TicketDetailsModal from "../components/tickets/TicketDetailsModal";
+import EscalateTicketModal from "../components/tickets/EscalateTicketModal";
 import DeviceDetailsModal from "../components/devices/DeviceDetailsModal";
 import {
  getDashboardKpiDetail,
@@ -460,6 +461,7 @@ export default function DashboardPage() {
   const [allDevices, setAllDevices] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [detailsModalTicket, setDetailsModalTicket] = useState(null);
+  const [escalateModal, setEscalateModal] = useState({ open: false, ticketId: null, ticket: null });
   const [deviceAssignments, setDeviceAssignments] = useState([]);
   const [componentUsageLogs, setComponentUsageLogs] = useState([]);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
@@ -662,6 +664,18 @@ export default function DashboardPage() {
       fetchDashboardData();
     } catch (err) {
       showToast("Error rejecting ticket");
+    }
+  };
+
+  const handleEscalateConfirm = async (reason, escalationType) => {
+    const id = escalateModal.ticketId;
+    try {
+      await api.tickets.escalate(id, reason, escalationType);
+      showToast(`Ticket ${id} escalated successfully`);
+      setEscalateModal({ open: false, ticketId: null, ticket: null });
+      fetchDashboardData();
+    } catch (err) {
+      showToast("Error escalating ticket");
     }
   };
 
@@ -1847,6 +1861,18 @@ export default function DashboardPage() {
     onStartTravel={(id) => handleUpdateStatus(id, "TRAVELLING")}
     onComplete={handleComplete}
     onUpdateStatus={handleUpdateStatus}
+    onEscalate={(t) => {
+      setEscalateModal({ open: true, ticketId: t.id, ticket: t });
+      setDetailsModalTicket(null);
+    }}
+  />
+
+  <EscalateTicketModal
+    open={escalateModal.open}
+    ticketId={escalateModal.ticketId}
+    ticket={escalateModal.ticket}
+    onClose={() => setEscalateModal({ open: false, ticketId: null, ticket: null })}
+    onConfirm={handleEscalateConfirm}
   />
 
 </div>

@@ -5,8 +5,11 @@ const getBaseUrl = () => {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
-  // Fallback to legacy VITE_API_URL if defined, otherwise localhost:8080
-  return import.meta.env.VITE_API_URL || "http://localhost:8080";
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // In production, never fallback to localhost
+  return import.meta.env.PROD ? "" : "http://localhost:8080";
 };
 
 const axiosInstance = axios.create({

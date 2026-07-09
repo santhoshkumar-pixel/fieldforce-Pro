@@ -301,6 +301,28 @@ public class DataInitializer {
 
                 activityRepo.save(new TechnicianActivityLog("U-003", "JOB-2024-010", "ASSIGNED", "Ticket JOB-2024-010 assigned (Pending).", Instant.now().minus(1, ChronoUnit.HOURS), 15.275, 74.124, "Meera Rao"));
             }
+
+            // Ensure role-technician has tickets.escalate permission dynamically
+            roleRepo.findById("role-technician").ifPresent(role -> {
+                if (!role.getPermissions().contains("tickets.escalate")) {
+                    role.getPermissions().add("tickets.escalate");
+                    roleRepo.save(role);
+                }
+            });
+            // Ensure role-tech has tickets.escalate permission dynamically
+            roleRepo.findById("role-tech").ifPresent(role -> {
+                if (!role.getPermissions().contains("tickets.escalate")) {
+                    role.getPermissions().add("tickets.escalate");
+                    roleRepo.save(role);
+                }
+            });
+            // Ensure role-tech-support has tickets.escalate permission dynamically
+            roleRepo.findById("role-tech-support").ifPresent(role -> {
+                if (!role.getPermissions().contains("tickets.escalate")) {
+                    role.getPermissions().add("tickets.escalate");
+                    roleRepo.save(role);
+                }
+            });
         };
     }
 }

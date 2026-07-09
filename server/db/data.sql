@@ -81,6 +81,7 @@ DELETE FROM role_permissions WHERE role_id = 'role-technician';
 INSERT INTO role_permissions (role_id, permission) VALUES
 ('role-technician', 'tickets.view'),
 ('role-technician', 'tickets.update'),
+('role-technician', 'tickets.escalate'),
 ('role-technician', 'devices.view'),
 ('role-technician', 'evidence.upload'),
 ('role-technician', 'attendance.view'),
@@ -106,6 +107,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO role_permissions (role_id, permission) VALUES
 ('role-tech', 'tickets.view'),
 ('role-tech', 'tickets.update'),
+('role-tech', 'tickets.escalate'),
 ('role-tech', 'devices.view'),
 ('role-tech', 'attendance.view'),
 ('role-tech', 'training.view')
@@ -130,6 +132,7 @@ DELETE FROM role_permissions WHERE role_id = 'role-tech-support';
 INSERT INTO role_permissions (role_id, permission) VALUES
 ('role-tech-support', 'tickets.view'),
 ('role-tech-support', 'tickets.update'),
+('role-tech-support', 'tickets.escalate'),
 ('role-tech-support', 'devices.view'),
 ('role-tech-support', 'evidence.upload'),
 ('role-tech-support', 'attendance.view'),

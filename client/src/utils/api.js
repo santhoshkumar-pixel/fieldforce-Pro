@@ -16,7 +16,7 @@ import {
 
 import axiosInstance from "../api/axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8080";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://localhost:8080");
 
 // Mutable in-memory stores for mock fallback mode
 let mockTicketsList = [...initialTickets];

@@ -1579,6 +1579,7 @@ export default function InventoryPage() {
         onClose={() => setDetailsModalTicket(null)}
         onComplete={() => {}}
         currentUser={user}
+        onEscalate={() => {}}
       />
     </div>
   );

@@ -957,7 +957,9 @@ export default function TicketDetailsModal({
                   <button
                     type="button"
                     onClick={() => {
-                      onEscalate(ticket);
+                      if (onEscalate) {
+                        onEscalate(ticket);
+                      }
                     }}
                     className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 shadow-lg shadow-amber-600/20"
                   >
